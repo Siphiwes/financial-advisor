@@ -21,14 +21,20 @@ from app.database.cloudant import (
     get_database_name,
 )
 from app.database.users import (
+    InvalidCurrentPasswordError,
     UserAlreadyExistsError,
+    change_user_password,
     create_user,
     get_user_by_email,
+    revoke_user_sessions,
 )
 from app.schemas.auth import (
     AuthenticatedUser,
+    AuthenticationActionResponse,
     LoginRequest,
+    PasswordChangeRequest,
     RegisterRequest,
+    SessionRevocationRequest,
     TokenResponse,
     UserPublic,
 )
@@ -184,4 +190,76 @@ def read_current_user(
         id=current_user.id,
         email=current_user.email,
         created_at=current_user.created_at,
+    )
+
+
+
+@router.post(
+    "/password/change",
+    response_model=AuthenticationActionResponse,
+    summary="Change the account password and invalidate existing access tokens",
+)
+def change_password(
+    payload: PasswordChangeRequest,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> AuthenticationActionResponse:
+    """Change the password after re-verifying the current password."""
+    client, database = _cloudant_connection()
+    try:
+        change_user_password(
+            client,
+            database,
+            current_user.email,
+            current_user.id,
+            payload.current_password,
+            payload.new_password,
+        )
+    except InvalidCurrentPasswordError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning("Password change failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="The password could not be changed.",
+        ) from exc
+
+    return AuthenticationActionResponse(
+        message="Password changed. Sign in again with the new password.",
+        sessions_invalidated=True,
+    )
+
+
+@router.post(
+    "/sessions/revoke",
+    response_model=AuthenticationActionResponse,
+    summary="Sign out all sessions by invalidating previously issued access tokens",
+)
+def revoke_sessions(
+    payload: SessionRevocationRequest,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> AuthenticationActionResponse:
+    """Invalidate all current bearer tokens after password re-verification."""
+    client, database = _cloudant_connection()
+    try:
+        revoke_user_sessions(
+            client,
+            database,
+            current_user.email,
+            current_user.id,
+            payload.current_password,
+        )
+    except InvalidCurrentPasswordError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning("Session revocation failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="The account sessions could not be revoked.",
+        ) from exc
+
+    return AuthenticationActionResponse(
+        message="All previously issued access tokens have been invalidated.",
+        sessions_invalidated=True,
     )

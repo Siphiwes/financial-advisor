@@ -39,3 +39,23 @@ class AuthenticatedUser(BaseModel):
     id: str
     email: EmailStr
     created_at: datetime
+
+
+
+class PasswordChangeRequest(BaseModel):
+    """Change the signed-in user's password after verifying the current password."""
+
+    current_password: Annotated[str, Field(min_length=1, max_length=128)]
+    new_password: PasswordInput
+
+
+class SessionRevocationRequest(BaseModel):
+    """Invalidate all existing bearer tokens after verifying the current password."""
+
+    current_password: Annotated[str, Field(min_length=1, max_length=128)]
+
+
+
+class AuthenticationActionResponse(BaseModel):
+    message: str
+    sessions_invalidated: bool = False
