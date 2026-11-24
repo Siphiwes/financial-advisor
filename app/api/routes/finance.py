@@ -49,6 +49,7 @@ def _invalid(exc: Exception) -> HTTPException:
 
 @router.get("/accounts", response_model=list[FinancialAccountResponse])
 def read_accounts(current_user: CurrentUser) -> list[dict]:
+    finance.record_sensitive_access(current_user, "read", "accounts")
     return finance.list_financial_accounts(current_user)
 
 
@@ -107,6 +108,7 @@ def read_transactions(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0, le=10_000),
 ) -> dict:
+    finance.record_sensitive_access(current_user, "read", "transactions")
     try:
         items, has_more = finance.list_transactions(
             current_user,
@@ -142,6 +144,7 @@ def add_transaction(payload: TransactionCreate, current_user: CurrentUser) -> di
 
 @router.get("/transactions/{transaction_id}", response_model=TransactionResponse)
 def read_transaction(transaction_id: str, current_user: CurrentUser) -> dict:
+    finance.record_sensitive_access(current_user, "read", "transaction")
     try:
         return finance.get_transaction(current_user, transaction_id)
     except finance.FinanceRecordNotFoundError as exc:
@@ -207,11 +210,13 @@ def edit_category(
 
 @router.get("/budgets/progress", response_model=list[BudgetProgressResponse])
 def read_budget_progress(current_user: CurrentUser) -> list[dict]:
+    finance.record_sensitive_access(current_user, "read", "budget_progress")
     return finance.list_budget_progress(current_user)
 
 
 @router.get("/budgets", response_model=list[BudgetResponse])
 def read_budgets(current_user: CurrentUser) -> list[dict]:
+    finance.record_sensitive_access(current_user, "read", "budgets")
     return finance.list_budgets(current_user)
 
 
@@ -248,6 +253,7 @@ def remove_budget(budget_id: str, current_user: CurrentUser) -> dict:
 
 @router.get("/goals/{goal_id}", response_model=GoalResponse)
 def read_goal(goal_id: str, current_user: CurrentUser) -> dict:
+    finance.record_sensitive_access(current_user, "read", "goal")
     try:
         return finance.get_goal(current_user, goal_id)
     except finance.FinanceRecordNotFoundError as exc:
@@ -273,6 +279,7 @@ def add_goal_contribution(
 
 @router.get("/goals", response_model=list[GoalResponse])
 def read_goals(current_user: CurrentUser) -> list[dict]:
+    finance.record_sensitive_access(current_user, "read", "goals")
     return finance.list_goals(current_user)
 
 
@@ -312,6 +319,7 @@ def remove_goal(goal_id: str, current_user: CurrentUser) -> dict:
     response_model=list[RecurringPaymentCandidate],
 )
 def read_recurring_payment_candidates(current_user: CurrentUser) -> list[dict]:
+    finance.record_sensitive_access(current_user, "read", "recurring_payments")
     return finance.recurring_payment_candidates(current_user)
 
 
@@ -321,6 +329,7 @@ def read_financial_summary(
     from_date: date | None = None,
     to_date: date | None = None,
 ) -> FinancialSummaryResponse:
+    finance.record_sensitive_access(current_user, "read", "financial_summary")
     try:
         return finance.financial_summary(
             current_user, from_date=from_date, to_date=to_date
