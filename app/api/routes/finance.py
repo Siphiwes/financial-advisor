@@ -9,6 +9,7 @@ from app.api.dependencies import get_current_user, require_financial_data_enable
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     BudgetCreate,
+    BudgetProgressResponse,
     BudgetResponse,
     BudgetUpdate,
     CategoryCreate,
@@ -18,6 +19,7 @@ from app.schemas.finance import (
     FinancialAccountResponse,
     FinancialAccountUpdate,
     FinancialSummaryResponse,
+    GoalContributionCreate,
     GoalCreate,
     GoalResponse,
     GoalUpdate,
@@ -25,6 +27,7 @@ from app.schemas.finance import (
     TransactionListResponse,
     TransactionResponse,
     TransactionUpdate,
+    RecurringPaymentCandidate,
 )
 from app.services import finance
 
@@ -199,6 +202,11 @@ def edit_category(
         raise _invalid(exc) from exc
 
 
+@router.get("/budgets/progress", response_model=list[BudgetProgressResponse])
+def read_budget_progress(current_user: CurrentUser) -> list[dict]:
+    return finance.list_budget_progress(current_user)
+
+
 @router.get("/budgets", response_model=list[BudgetResponse])
 def read_budgets(current_user: CurrentUser) -> list[dict]:
     return finance.list_budgets(current_user)
@@ -235,6 +243,31 @@ def remove_budget(budget_id: str, current_user: CurrentUser) -> dict:
         raise _not_found(exc) from exc
 
 
+@router.get("/goals/{goal_id}", response_model=GoalResponse)
+def read_goal(goal_id: str, current_user: CurrentUser) -> dict:
+    try:
+        return finance.get_goal(current_user, goal_id)
+    except finance.FinanceRecordNotFoundError as exc:
+        raise _not_found(exc) from exc
+
+
+@router.post(
+    "/goals/{goal_id}/contributions",
+    response_model=GoalResponse,
+)
+def add_goal_contribution(
+    goal_id: str,
+    payload: GoalContributionCreate,
+    current_user: CurrentUser,
+) -> dict:
+    try:
+        return finance.add_goal_contribution(current_user, goal_id, payload)
+    except finance.FinanceRecordNotFoundError as exc:
+        raise _not_found(exc) from exc
+    except finance.FinanceValidationError as exc:
+        raise _invalid(exc) from exc
+
+
 @router.get("/goals", response_model=list[GoalResponse])
 def read_goals(current_user: CurrentUser) -> list[dict]:
     return finance.list_goals(current_user)
@@ -269,6 +302,14 @@ def remove_goal(goal_id: str, current_user: CurrentUser) -> dict:
         return finance.update_goal(current_user, goal_id, {"is_active": False})
     except finance.FinanceRecordNotFoundError as exc:
         raise _not_found(exc) from exc
+
+
+@router.get(
+    "/analytics/recurring-payments",
+    response_model=list[RecurringPaymentCandidate],
+)
+def read_recurring_payment_candidates(current_user: CurrentUser) -> list[dict]:
+    return finance.recurring_payment_candidates(current_user)
 
 
 @router.get("/analytics/summary", response_model=FinancialSummaryResponse)
