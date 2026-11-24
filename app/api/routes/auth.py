@@ -372,22 +372,27 @@ def verify_email(payload: AccountTokenRequest) -> AuthenticationActionResponse:
 
 
 @router.post("/email/resend", response_model=AuthenticationActionResponse)
-def resend_verification(current_user: Annotated[AuthenticatedUser, Depends(get_current_user)]) -> AuthenticationActionResponse:
-    """Send a fresh verification link to the authenticated account."""
+def resend_verification(payload: PasswordResetRequest) -> AuthenticationActionResponse:
+    """Resend a verification link without requiring the unverified user to sign in."""
+    enabled = (get_setting("EMAIL_ENABLED", "false") or "false").strip().casefold()
+    if enabled not in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=503, detail="Transactional email is not configured.")
     client, database = _cloudant_connection()
-    user = get_user_by_email(client, database, current_user.email)
-    if not user or user.get("email_verified") is True:
-        return AuthenticationActionResponse(message="If verification is required, a new link will be sent.")
     try:
-        token = issue_account_action_token(client, database, email=current_user.email, user_id=current_user.id, action="verify_email", expires_minutes=60)
-        public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
-        if not public_url.startswith("https://"):
-            raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
-        link = f"{public_url}/app?verify_token={token}"
-        send_account_email(recipient=current_user.email, subject="Verify your Financial Advisor email", text_body=f"Verify your email within 60 minutes: {link}", html_body=f'<p><a href="{link}">Verify email address</a></p><p>This link expires in 60 minutes.</p>')
+        user = get_user_by_email(client, database, str(payload.email))
+        if user and user.get("is_active") is True and user.get("email_verified") is not True:
+            token = issue_account_action_token(client, database, email=user["email"], user_id=user["user_id"], action="verify_email", expires_minutes=60)
+            public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
+            if not public_url.startswith("https://"):
+                raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
+            link = f"{public_url}/app?verify_token={token}"
+            send_account_email(recipient=user["email"], subject="Verify your Financial Advisor email", text_body=f"Verify your email within 60 minutes: {link}", html_body=f'<p><a href="{link}">Verify email address</a></p><p>This link expires in 60 minutes.</p>')
     except (EmailConfigurationError, EmailDeliveryError) as exc:
         raise HTTPException(status_code=503, detail="Verification email is not available.") from exc
-    return AuthenticationActionResponse(message="A new verification link has been sent.")
+    except Exception as exc:
+        logger.warning("Verification email request failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Verification email could not be sent.") from exc
+    return AuthenticationActionResponse(message="If an unverified account matches that address, a verification link will be sent.")
 
 
 @router.post("/password/reset/request", response_model=AuthenticationActionResponse)
