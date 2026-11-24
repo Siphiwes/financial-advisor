@@ -474,7 +474,7 @@
   function renderImportPreview(preview) {
     state.importPreview = preview;
     const isPdfPreview = preview.source_format === "FNB PDF";
-    $("pdf-preview-notice").classList.add("hidden");
+    $("pdf-preview-notice").classList.toggle("hidden", !isPdfPreview);
     $("import-confirm-form").classList.remove("hidden");
     $("import-preview").classList.remove("hidden");
     $("import-metadata").textContent = [
