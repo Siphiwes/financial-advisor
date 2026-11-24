@@ -239,6 +239,37 @@
       const edit = el("button", "Edit", "button button-secondary");
       edit.type = "button";
       edit.addEventListener("click", () => editTransaction(item));
+      const suggest = el("button", "Suggest category with AI", "button button-secondary");
+      suggest.type = "button";
+      suggest.addEventListener("click", async () => {
+        const consent = window.confirm(
+          "Send this transaction's date, description, amount and currency, plus your allowed category names, to IBM watsonx.ai for a category suggestion?"
+        );
+        if (!consent) return;
+        try {
+          const result = await api(
+            "/api/v1/advisor/transactions/" + encodeURIComponent(item.id) + "/suggest-category",
+            {
+              method: "POST",
+              body: JSON.stringify({ consent_to_share_transaction: true }),
+            }
+          );
+          const apply = window.confirm(
+            "AI suggests: " + result.suggested_category +
+            "\n\nReason: " + result.explanation +
+            "\n\nApply this category? The original imported transaction details will remain preserved."
+          );
+          if (apply) {
+            await api("/api/v1/transactions/" + encodeURIComponent(item.id), {
+              method: "PATCH",
+              body: JSON.stringify({ category: result.suggested_category }),
+            });
+            await loadData();
+          }
+        } catch (error) {
+          globalMessage(error.message, true);
+        }
+      });
       const remove = el("button", "Delete", "button button-quiet");
       remove.type = "button";
       remove.addEventListener("click", async () => {
@@ -250,7 +281,7 @@
           globalMessage(error.message, true);
         }
       });
-      actions.append(edit, remove);
+      actions.append(edit, suggest, remove);
       row.append(actions);
       body.append(row);
     });
