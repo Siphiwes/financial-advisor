@@ -289,6 +289,7 @@ def ensure_user_scope_indexes(client, database: str) -> None:
             ("by_transaction_account", ["user_id", "type", "data.account_id"]),
             ("by_transaction_category", ["user_id", "type", "data.category_id"]),
             ("by_transaction_import", ["user_id", "type", "data.import_id"]),
+            ("by_goal_contributions", ["user_id", "type", "data.goal_id"]),
         )
         for name, fields in indexes:
             client.post_index(
