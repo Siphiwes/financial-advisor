@@ -40,7 +40,7 @@ async def chat_with_advisor(
     payload: AdvisorChatRequest,
     current_user: CurrentUser,
 ) -> AdvisorChatResponse:
-    """Send a question and a bounded aggregate summary to IBM watsonx.ai."""
+    """Send a question and the complete consented financial records to IBM watsonx.ai."""
     if payload.consent_to_share_all_financial_records is not True:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
