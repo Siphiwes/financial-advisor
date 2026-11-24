@@ -2,62 +2,59 @@
 
 ## Secrets
 
-- Never commit live API keys, passwords, access tokens or private certificates.
-- Use local `.env` files only for local development; they are ignored by Git and excluded from Docker build context.
-- Use IBM Code Engine secrets for deployed credentials.
-- Keep Cloudant diagnostics credentials separate from application credentials.
-- Keep `JWT_SECRET_KEY` and `AUTH_EMAIL_INDEX_KEY` independent, random, and at least 32 bytes long.
-- Keep `REGISTRATION_INVITE_CODE` private. Registration is disabled when it is not configured.
-- Rotate credentials if exposed. Do not paste secrets into issues, logs or chat.
+- Never commit live API keys, passwords, access tokens, bank statements or private certificates.
+- Use IBM Code Engine secrets for deployed credentials and local .env files for development only.
+- Keep JWT_SECRET_KEY and AUTH_EMAIL_INDEX_KEY independent, random and at least 32 bytes long.
+- Keep REGISTRATION_INVITE_CODE private. Registration is disabled if it is not configured.
+- Store the watsonx.ai API key as a Code Engine secret.
+- Rotate credentials immediately if exposure is suspected.
 
-## Financial data protection
+## Authentication and authorization
 
-- Do not commit bank statements, transaction exports, account identifiers or personal financial records to GitHub.
-- Do not import actual financial data until authentication, per-user authorization, consent, retention, deletion, backup and access controls are implemented and tested.
-- Automated tests use technical fixtures and mocked service responses, not fabricated financial transaction histories.
-- End-to-end finance tests should use user-authorized actual financial records only after the required protections are in place.
-- Collect only the data required for a defined feature.
-- Do not log transaction descriptions, account identifiers, document contents, API keys or authentication tokens.
+- Passwords are hashed using Argon2id.
+- Access tokens are signed JWTs with issuer, audience, expiry, subject, token ID and account-version claims.
+- Protected routes reload the active user from Cloudant.
+- Finance document IDs include the authenticated user's UUID namespace.
+- Stored user ID, document type and record ID are verified on reads.
+- List queries include the authenticated user ID and collection type, and returned records are checked again.
+- Never accept an owner ID from request input.
+- The browser holds the access token in memory only. It does not store it in localStorage or sessionStorage.
 
-## Authentication currently implemented
+## Financial data
 
-- Account registration requires the `X-Registration-Invite` header and a server-side `REGISTRATION_INVITE_CODE`. If the secret is absent, registration is disabled.
-- Passwords are hashed using Argon2id through pwdlib. Passwords are never returned by API responses.
-- Access tokens are signed JWTs using HS256, with issuer, audience, expiry, subject, token ID and account-version claims.
-- Access-token lifetime is constrained to 5-60 minutes and defaults to 15 minutes.
-- The current-user dependency reloads the account from Cloudant and checks account status and token version on every protected request.
-- User email lookup document IDs use a keyed HMAC. Raw email addresses are stored only in the user document, not in its Cloudant document ID.
-- Financial document IDs include the authenticated user's UUID namespace. Access helpers require the caller's user ID and do not accept an owner ID from request payloads.
+- Original imported transaction date, description, reference, amount, currency, fee and balance are preserved.
+- Classification, merchant overrides and notes are stored separately from original bank fields.
+- Original FNB CSV files are parsed in memory and are not retained.
+- Confirmed imports save one transaction per Cloudant document and a statement digest/import record.
+- Statement and transaction identifiers are deterministic so retries can be detected.
+- Financial calculations use Decimal values, not binary floating point.
+- Do not log transaction descriptions, account identifiers, statement contents, API keys or authentication tokens.
 
-## Important limitations before real financial data
+## Upload and browser protections
 
-- Authentication endpoints are a foundation, not a complete production identity platform.
-- There is no password reset, verified-email workflow, MFA, refresh-token rotation, account recovery or user-facing session revocation endpoint yet.
-- Registration invite codes are a bootstrap control, not a substitute for a full onboarding and abuse-prevention workflow.
-- Apply edge-level rate limiting to registration and login before public exposure.
-- Configure a strong, unique JWT secret and email-index key in Code Engine before enabling registration or issuing tokens.
-- Do not expose finance endpoints until every read, update, delete, export and aggregate query is tied to the authenticated user and has cross-user isolation tests.
-- Complete privacy, retention, deletion, backup, restore, audit logging and incident-response controls before importing real bank data.
+- FNB CSV upload limit is 20 MB and transaction count limit is 10,000.
+- Upload endpoints require authentication.
+- Persistence requires a separate confirmation request.
+- Account number suffixes are masked to the final four digits in the preview.
+- The browser app is served same-origin with a restrictive Content Security Policy, frame protection, MIME sniffing protection, referrer policy and permissions policy.
+- All user-controlled values rendered by the browser must be HTML-escaped.
 
-## AI safety and financial correctness
+## AI controls
 
-- Treat imported documents and transaction descriptions as untrusted input.
-- Do not let document text or model output execute code, queries or privileged actions.
-- Validate model outputs against schemas and deterministic calculations.
-- Clearly distinguish verified figures, estimates and AI-generated explanations.
-- Do not present the application as a licensed financial adviser or imply guaranteed outcomes.
+- watsonx.ai is disabled by default.
+- Both AI_ADVISOR_ENABLED and AI_DATA_PROCESSING_APPROVED must be true.
+- Each user must separately consent to external AI processing.
+- Only the user's question and application-calculated aggregate figures are sent. Raw statements, account numbers, references and transaction descriptions are excluded.
+- The model is instructed not to invent or replace financial figures.
+- AI output is educational and must not be represented as regulated financial advice.
 
-## Deployment
+## Remaining production controls
 
-Run the container as a non-root user. Keep dependencies reviewed and updated. Restrict CORS to known frontend origins when a browser frontend is introduced.
+- Email verification, password reset, recovery and MFA.
+- Distributed rate limiting and abuse protection.
+- Complete audit trail for sensitive actions, reads, exports and deletion.
+- User export and complete account deletion.
+- Backup/restore testing, incident response and credential-rotation procedures.
+- Threat model, security review, dependency scanning and POPIA/cross-border processing assessment.
 
-
-## FNB statement preview
-
-- FNB CSV uploads are accepted only by an authenticated preview endpoint.
-- The uploaded file is parsed in memory and is not written to Cloudant.
-- The API limits CSV uploads to 20 MB and transaction rows to 10,000.
-- Account numbers are reduced to their last four digits in preview metadata.
-- The preview returns at most 10 transaction rows.
-- Do not log uploaded file contents, transaction descriptions, references or account identifiers.
-- Persistent statement and transaction imports remain disabled until consent, deduplication, ownership enforcement, retention, deletion, backup and restore, and audit controls are implemented and verified.
+Do not onboard other users' real financial information until the remaining controls have been implemented and reviewed.
