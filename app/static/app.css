@@ -184,3 +184,68 @@ tr:last-child td { border-bottom: 0; }
 .privacy-danger input { max-width: 220px; margin-bottom: 12px; }
 .button-danger { background: #a33b3b; color: #fff; }
 .button-danger:hover:not(:disabled) { background: #862d2d; }
+
+/* Authentication experience refresh */
+body { background: #f5f7fb; }
+.topbar { background: #101c2e; border-bottom: 1px solid rgba(255,255,255,.08); }
+.page { max-width: 1320px; padding-top: 28px; }
+.login-wrap {
+  max-width: 1160px; min-height: min(760px, calc(100vh - 150px));
+  margin: 20px auto 0; grid-template-columns: minmax(0,1.08fr) minmax(380px,.82fr);
+  gap: clamp(42px,7vw,100px); align-items: center;
+}
+.login-copy { padding: 22px 0; }
+.login-brandline { display:flex; align-items:center; gap:11px; margin-bottom:64px; color:#52647a; font-size:11px; font-weight:800; letter-spacing:.16em; }
+.login-brand-icon { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; background:#142b45; color:#fff; font-size:12px; letter-spacing:0; box-shadow:0 8px 20px rgba(16,37,61,.16); }
+.login-copy .eyebrow { color:#168477; letter-spacing:.18em; }
+.login-copy h1 { max-width:610px; color:#13243a; font-size:clamp(36px,4.2vw,54px); line-height:1.08; letter-spacing:-.055em; margin-bottom:20px; }
+.login-copy .login-intro { max-width:520px; color:#627187; font-size:16px; line-height:1.75; }
+.login-benefits { display:grid; gap:19px; margin-top:38px; }
+.login-benefits > div { display:flex; align-items:center; gap:14px; }
+.benefit-icon { display:grid; place-items:center; flex:0 0 38px; height:38px; border:1px solid #dce5ed; border-radius:12px; color:#168477; background:#fff; font-size:11px; font-weight:800; }
+.login-benefits strong,.login-benefits small { display:block; }
+.login-benefits strong { color:#24364b; font-size:13px; }
+.login-benefits small { color:#7b8999; font-size:12px; margin-top:2px; }
+.login-copy .privacy-note { max-width:500px; margin-top:36px; border-left-color:#9eb6c8; color:#77869a; line-height:1.6; }
+.auth-card-shell { width:100%; max-width:470px; justify-self:end; }
+.auth-card { border:1px solid #e3e9f0; border-radius:20px; padding:clamp(27px,4vw,42px); background:#fff; box-shadow:0 22px 65px rgba(22,42,66,.09); }
+.auth-heading { margin-bottom:28px; }
+.auth-heading .eyebrow { margin-bottom:10px; }
+.auth-heading h2 { color:#15263c; font-size:27px; letter-spacing:-.04em; margin-bottom:7px; }
+.auth-heading > p:last-child { font-size:13px; margin-bottom:0; }
+.auth-card label { color:#34465c; font-size:12px; font-weight:700; margin-bottom:8px; }
+.auth-card input { min-height:49px; border-radius:10px; border-color:#d9e1ea; background:#fbfcfe; padding:12px 14px; margin-bottom:19px; font-size:14px; }
+.auth-card input:focus { border-color:#2a8d82; box-shadow:0 0 0 4px rgba(42,141,130,.12); background:#fff; }
+.auth-card input::placeholder { color:#a2adba; }
+.auth-submit { min-height:49px; border-radius:10px; margin-top:5px; background:#142d49; font-size:14px; box-shadow:0 7px 16px rgba(20,45,73,.16); }
+.auth-submit:hover:not(:disabled) { background:#1d456c; }
+.auth-submit span { margin-left:9px; font-size:18px; line-height:0; }
+.auth-message { display:block; min-height:18px; margin-top:12px; line-height:1.5; }
+.auth-links { display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px 16px; margin-top:8px; }
+.auth-divider { display:flex; align-items:center; gap:12px; margin:25px 0 16px; color:#9aa6b4; font-size:9px; font-weight:800; letter-spacing:.14em; }
+.auth-divider::before,.auth-divider::after { content:""; height:1px; flex:1; background:#e8edf2; }
+.account-switch { color:#7a8797; text-align:center; margin:0; font-size:12px; }
+.account-switch .text-button { margin-left:4px; }
+.field-hint { margin:-13px 0 18px; color:#8995a4; font-size:11px; }
+.form-message.error { color:#b33d46; }
+.form-message.success { color:#168477; }
+@media (max-width: 800px) {
+  .login-wrap { min-height:0; max-width:520px; margin:8px auto 35px; grid-template-columns:1fr; gap:28px; }
+  .login-copy { text-align:left; padding:10px 0 0; }
+  .login-brandline { margin-bottom:32px; }
+  .login-copy h1 { font-size:38px; }
+  .login-copy .privacy-note { text-align:left; }
+  .login-benefits { grid-template-columns:1fr; gap:13px; margin-top:25px; }
+  .auth-card-shell { justify-self:stretch; max-width:none; }
+}
+@media (max-width: 520px) {
+  .page { padding:16px 14px 40px; }
+  .login-wrap { margin-top:4px; }
+  .login-brandline { margin-bottom:27px; }
+  .login-copy h1 { font-size:34px; }
+  .login-copy .login-intro { font-size:14px; }
+  .login-benefits { margin-top:22px; }
+  .auth-card { padding:25px 21px; border-radius:16px; }
+  .auth-heading h2 { font-size:24px; }
+  .auth-links { flex-direction:column; align-items:flex-start; }
+}
