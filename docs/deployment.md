@@ -1,39 +1,55 @@
 # Deployment notes
 
-## Current target
+## Target
 
-The API is deployed to IBM Cloud Code Engine in Frankfurt. The container listens on port 8080 and starts with `uvicorn main:app`.
+The application is deployed to IBM Cloud Code Engine in Frankfurt. The container listens on port 8080 and starts with uvicorn main:app. The browser UI and API are served from the same origin.
 
-## Configuration
+## Required Code Engine configuration
 
-Use Code Engine secrets for credentials and environment references for non-secret settings. Do not bake credentials into the image or pass them as Docker build arguments.
+Use the existing secrets and environment references. Do not put secret values in the repository or build arguments.
 
-The application reads these Cloudant settings:
+Cloudant:
+- CLOUDANT_URL
+- CLOUDANT_API_KEY
+- CLOUDANT_DATABASE=finance-advisor-db
 
-- `CLOUDANT_URL`: the preferred HTTPS endpoint for the Cloudant instance.
-- `CLOUDANT_API_KEY`: the IAM API key from the Cloudant Writer service credential.
-- `CLOUDANT_DATABASE`: database name; defaults to `finance-advisor-db`.
-- `CLOUDANT_DIAGNOSTICS_TOKEN`: separate secret required for the protected diagnostic endpoints.
+Authentication:
+- JWT_SECRET_KEY
+- AUTH_EMAIL_INDEX_KEY
+- REGISTRATION_INVITE_CODE
+- ACCESS_TOKEN_EXPIRE_MINUTES=15
+- JWT_ALGORITHM=HS256
 
-The current Cloudant secret references provide the URL and IAM API key. Add the diagnostics token as a separate key in the Code Engine secret and reference it as an application environment variable before using the diagnostic endpoints.
+Keep the separate CLOUDANT_DIAGNOSTICS_TOKEN reference removed after the earlier connectivity test. Do not re-enable diagnostic endpoints for normal use.
 
-## Cloudant diagnostics
+Optional AI configuration:
+- WATSONX_APIKEY
+- WATSONX_PROJECT_ID
+- WATSONX_URL
+- WATSONX_MODEL_ID
+- WATSONX_API_VERSION=2024-05-31
+- AI_ADVISOR_ENABLED=false
+- AI_DATA_PROCESSING_APPROVED=false
 
-- `GET /health/cloudant` checks IAM authentication and read access to the configured database.
-- `POST /diagnostics/cloudant/round-trip` creates a short-lived technical probe document, reads it back, and deletes it.
-- Both endpoints require the `X-Cloudant-Diagnostics-Token` header.
-- The diagnostic probe contains no financial data. Do not expose the diagnostics token or include it in source control.
-- Remove the `CLOUDANT_DIAGNOSTICS_TOKEN` application reference after the connectivity test is complete. The diagnostic endpoints will then remain disabled.
+Keep both AI flags false until the operator has verified the IBM watsonx.ai region, contract, retention, security and data-processing arrangements. Per-user consent is also required.
 
-## Release sequence
+## Build and release sequence
 
-1. Run lint and automated tests in GitHub Actions.
-2. Review the commit and dependency changes.
-3. Build the container from the repository's root Dockerfile.
-4. Deploy a new Code Engine revision.
-5. Verify the revision is Ready.
-6. Smoke-test `/` and `/health`.
-7. Configure the diagnostics token and test Cloudant access.
-8. Remove the diagnostics token reference after verification.
+1. Merge the reviewed release branch into main only after GitHub Actions passes.
+2. Confirm the main commit contains the complete release and all documentation.
+3. Start the existing Code Engine build configuration from main.
+4. Confirm the build uses the current root Dockerfile and registry image.
+5. Deploy a new Code Engine revision using the new image.
+6. Confirm the revision is Ready and receives traffic.
+7. Smoke-test the browser UI, /health, /docs, login and /auth/me.
+8. Verify Cloudant queries and indexes using the configured application service identity.
+9. Add an FNB account reference, preview an actual statement, inspect its values and only then confirm import.
+10. Keep the AI advisor disabled unless its separate approval process is complete.
 
-Do not assume a successful container deployment proves that an external service connection works.
+Do not assume a successful container build proves Cloudant operations, import correctness, or external AI processing.
+
+## Deployment safeguards
+
+The first deployment of the release must not run a migration that deletes, rewrites or reclassifies existing user documents. Index creation is additive. Confirm that the Cloudant service credential can create the required JSON indexes before deployment.
+
+The deployment process does not require a new Cloudant instance, database, JWT key or invitation secret. Keep the existing credentials unless a deliberate rotation is planned.
