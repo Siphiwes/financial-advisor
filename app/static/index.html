@@ -84,8 +84,19 @@
           </article>
         </div>
         <article class="panel ai-panel">
-          <div><p class="eyebrow">AI FINANCIAL ADVISOR</p><h2>AI analysis is not connected yet</h2><p class="muted">The application will only provide AI explanations once the IBM watsonx.ai integration and verified-data controls are implemented.</p></div>
-          <span class="status-pill">Planned</span>
+          <div class="ai-panel-content">
+            <p class="eyebrow">AI FINANCIAL ADVISOR</p>
+            <h2>Ask about your financial position</h2>
+            <p class="muted">IBM watsonx.ai receives your question and an aggregated financial summary only. Transaction descriptions, references and account identifiers are excluded.</p>
+            <form id="advisor-form" class="advisor-form">
+              <label for="advisor-question">Your question</label>
+              <textarea id="advisor-question" rows="3" maxlength="2000" required placeholder="Ask about your recorded income, expenses, categories or cash flow."></textarea>
+              <label class="checkbox-row"><input id="advisor-consent" type="checkbox" required> I explicitly consent to sending my question and aggregated financial summary to IBM watsonx.ai for this response.</label>
+              <button id="advisor-submit" class="button button-primary" type="submit" disabled>Ask advisor</button>
+            </form>
+            <div id="advisor-answer" class="advisor-answer hidden" aria-live="polite"></div>
+          </div>
+          <span class="status-pill">Separate AI feature gate</span>
         </article>
       </section>
 
