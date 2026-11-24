@@ -13,8 +13,14 @@ Before persistent real-data use, provide clear user information covering:
 - How a user can access, correct, export and delete records.
 - Retention periods and deletion handling.
 - Who can access data and how privileged access is audited.
-- Whether any information is sent to IBM watsonx.ai or another external provider.
+- Whether any information is sent to external AI providers, what fields are shared, and the applicable provider terms.
 - The account holder's consent and how it can be withdrawn.
+
+## AI processing
+
+The AI advisor is separately disabled by default. Each AI request requires a consent flag. When consent is given, the backend sends the user's question and an aggregated financial summary to IBM watsonx.ai. The summary includes currency-level income, expenses, transfers, net cash flow, expense totals by category and the selected date range. Raw transaction descriptions, references, account identifiers and statement files are not sent by the current integration. The question and response are not stored by the chat endpoint.
+
+AI processing must remain disabled until the user-facing notice, provider configuration, data-sharing terms and applicable privacy review have been completed.
 
 ## Storage and processing
 
