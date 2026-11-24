@@ -58,3 +58,24 @@ def test_advisor_requires_explicit_consent_before_summary_lookup(monkeypatch) ->
 
     assert response.status_code == 400
     assert "consent" in response.json()["detail"].casefold()
+
+
+
+def test_transaction_category_suggestion_requires_separate_consent(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("FINANCIAL_DATA_ENABLED", "true")
+    monkeypatch.setenv("FINANCIAL_AI_ENABLED", "true")
+    app.dependency_overrides[get_current_user] = _authenticated_user
+
+    try:
+        response = client.post(
+            "/api/v1/advisor/transactions/"
+            "0123456789abcdef0123456789abcdef/suggest-category",
+            json={"consent_to_share_transaction": False},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 400
+    assert "consent" in response.json()["detail"].casefold()
