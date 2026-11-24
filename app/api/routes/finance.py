@@ -9,6 +9,10 @@ from app.api.dependencies import get_current_user, require_financial_data_enable
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     BudgetCreate,
+    DebtCreate,
+    DebtResponse,
+    DebtSummaryResponse,
+    DebtUpdate,
     BudgetProgressResponse,
     BudgetResponse,
     BudgetUpdate,
@@ -312,6 +316,45 @@ def remove_goal(goal_id: str, current_user: CurrentUser) -> dict:
         return finance.update_goal(current_user, goal_id, {"is_active": False})
     except finance.FinanceRecordNotFoundError as exc:
         raise _not_found(exc) from exc
+
+
+
+
+@router.get("/debts", response_model=list[DebtResponse])
+def read_debts(current_user: CurrentUser) -> list[dict]:
+    finance.record_sensitive_access(current_user, "read", "debts")
+    return finance.list_debts(current_user)
+
+
+@router.post("/debts", response_model=DebtResponse, status_code=status.HTTP_201_CREATED)
+def add_debt(payload: DebtCreate, current_user: CurrentUser) -> dict:
+    try:
+        return finance.create_debt(current_user, payload)
+    except finance.FinanceValidationError as exc:
+        raise _invalid(exc) from exc
+
+
+@router.patch("/debts/{debt_id}", response_model=DebtResponse)
+def edit_debt(debt_id: str, payload: DebtUpdate, current_user: CurrentUser) -> dict:
+    try:
+        return finance.update_debt(
+            current_user,
+            debt_id,
+            payload.model_dump(exclude_unset=True),
+        )
+    except finance.FinanceRecordNotFoundError as exc:
+        raise _not_found(exc) from exc
+    except finance.FinanceValidationError as exc:
+        raise _invalid(exc) from exc
+
+
+@router.get("/analytics/debts", response_model=DebtSummaryResponse)
+def read_debt_summary(current_user: CurrentUser) -> DebtSummaryResponse:
+    finance.record_sensitive_access(current_user, "read", "debt_summary")
+    try:
+        return finance.debt_summary(current_user)
+    except finance.FinanceValidationError as exc:
+        raise _invalid(exc) from exc
 
 
 @router.get(
