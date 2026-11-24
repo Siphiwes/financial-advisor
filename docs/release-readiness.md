@@ -89,7 +89,7 @@ Before the one-time release:
 1. Obtain the actual CSV through FNB Online Banking. Never place it in GitHub, email tickets or this chat.
 2. Validate it using the authenticated preview endpoint in the application.
 3. Compare the parsed dates, descriptions, references, service fees, debit/credit values and balances against the source statement.
-4. Check the account-last-four match against the selected account.
+4. Check the account-last-four match against the selected account. Treat this as a consistency check, not as proof of account ownership; the user must confirm the selected account.
 5. Confirm how the specific export represents reversals, transfers, pending transactions, fees, duplicate-looking rows and statement summary lines.
 6. Only after backup/restore and privacy controls pass should persistent import be enabled and the account holder confirm the import.
 
