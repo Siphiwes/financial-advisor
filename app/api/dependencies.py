@@ -68,3 +68,14 @@ def get_current_user(
         email=user_document["email"],
         created_at=user_document["created_at"],
     )
+
+
+
+def require_financial_data_enabled() -> None:
+    """Keep persistent financial-data endpoints disabled until release safeguards pass."""
+    enabled = (get_setting("FINANCIAL_DATA_ENABLED", "false") or "false").strip().casefold()
+    if enabled not in {"1", "true", "yes", "on"}:
+        raise HTTPException(
+            status_code=503,
+            detail="Financial data storage is disabled until release safeguards are completed.",
+        )
