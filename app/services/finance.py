@@ -133,16 +133,6 @@ def get_financial_account(user_id: str, account_id: str, *, active: bool = True)
     return account
 
 def create_financial_account(user: AuthenticatedUser, payload) -> dict:
-    existing_accounts = list_financial_accounts(user)
-    if any(
-        account["institution"] == payload.institution
-        and account["account_last_four"] == payload.account_last_four
-        for account in existing_accounts
-    ):
-        raise FinanceValidationError(
-            "This FNB account is already linked to your profile."
-        )
-
     data = {
         "institution": payload.institution,
         "display_name": payload.display_name.strip(),
@@ -392,13 +382,21 @@ def financial_summary(
         currency = item["currency"]
         totals = currency_totals[currency]
         totals["count"] += 1
-        if (item.get("category") or "").casefold() == "transfers":
+        category = item.get("category") or "Uncategorised"
+        category_kinds = {
+            category_item["name"].casefold(): category_item["kind"]
+            for category_item in list_categories(user)
+        }
+        category_kind = category_kinds.get(
+            category.casefold(),
+            "income" if amount >= 0 else "expense",
+        )
+        if category_kind == "transfer":
             totals["transfers"] += abs(amount)
         elif amount >= 0:
             totals["income"] += amount
         else:
             totals["expenses"] += abs(amount)
-            category = item.get("category") or "Uncategorised"
             category_total = category_totals[(category, currency)]
             category_total["expenses"] += abs(amount)
             category_total["count"] += 1
@@ -516,9 +514,19 @@ def commit_fnb_import(
 
     imported_count = 0
     duplicate_count = 0
+    transaction_occurrences: dict[str, int] = defaultdict(int)
     try:
         for transaction in statement.transactions:
-            record_id = _fnb_transaction_record_id(account_id, transaction)
+            base_record_id = _fnb_transaction_record_id(account_id, transaction)
+            occurrence = transaction_occurrences[base_record_id]
+            transaction_occurrences[base_record_id] += 1
+            record_id = (
+                base_record_id
+                if occurrence == 0
+                else hashlib.sha256(
+                    f"{base_record_id}:{occurrence}".encode()
+                ).hexdigest()[:32]
+            )
             existing = get_user_scoped_document(
                 client, database, user.id, "transactions", record_id
             )
