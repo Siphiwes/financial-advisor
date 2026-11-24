@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_financial_data_enabled
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     BudgetCreate,
@@ -28,7 +28,11 @@ from app.schemas.finance import (
 )
 from app.services import finance
 
-router = APIRouter(prefix="/api/v1", tags=["personal finance"])
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["personal finance"],
+    dependencies=[Depends(require_financial_data_enabled)],
+)
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
 
 
