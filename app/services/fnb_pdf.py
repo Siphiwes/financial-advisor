@@ -6,6 +6,7 @@ statement's text layer and normalized for preview or explicit import confirmatio
 
 import io
 import re
+from datetime import date
 from decimal import Decimal
 
 import pdfplumber
@@ -64,7 +65,7 @@ class FNBPDFValidationError(ValueError):
     """Raised when a PDF is unreadable or its transaction layout is unsupported."""
 
 
-def _parse_pdf_date(value: str):
+def _parse_pdf_date(value: str) -> date:
     try:
         return _parse_date(value)
     except FNBCSVValidationError as exc:
