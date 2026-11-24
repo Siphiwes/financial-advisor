@@ -669,6 +669,29 @@
   });
   $("refresh-categories").addEventListener("click", loadFinanceData);
 
+  $("advisor-consent").addEventListener("change", () => {
+    $("advisor-submit").disabled = !state.financeEnabled || !$("advisor-consent").checked;
+  });
+
+  $("advisor-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const answer = $("advisor-answer");
+    answer.classList.remove("hidden");
+    answer.textContent = "Preparing your approved summary and contacting IBM watsonx.ai...";
+    try {
+      const result = await api("/api/v1/advisor/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          question: $("advisor-question").value.trim(),
+          consent_to_share_summary: true,
+        }),
+      });
+      answer.textContent = result.answer + "\n\nData shared: " + result.data_shared.join("; ") + ".";
+    } catch (error) {
+      answer.textContent = error.message;
+    }
+  });
+
   fetch("/health", { credentials: "same-origin" })
     .then((response) => {
       $("connection-status").textContent = response.ok ? "API online" : "API issue";
