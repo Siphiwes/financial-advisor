@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencies import get_current_user
 from app.schemas.auth import AuthenticatedUser
-from app.schemas.privacy import PrivacyDeleteResponse, PrivacyExportResponse
+from app.schemas.privacy import (
+    PrivacyDeleteRequest,
+    PrivacyDeleteResponse,
+    PrivacyExportResponse,
+)
 from app.services import finance
 
 logger = logging.getLogger(__name__)
@@ -31,12 +35,18 @@ def export_my_data(current_user: CurrentUser) -> dict:
 
 
 @router.delete("/data", response_model=PrivacyDeleteResponse)
-def delete_my_data(current_user: CurrentUser) -> dict:
-    """Delete user-owned finance documents and revoke the login account."""
+def delete_my_data(
+    payload: PrivacyDeleteRequest,
+    current_user: CurrentUser,
+) -> dict:
+    """Delete user-owned finance documents after password re-verification."""
     try:
-        return finance.delete_user_data_and_account(current_user)
+        return finance.delete_user_data_and_account(
+            current_user,
+            payload.current_password,
+        )
     except finance.FinanceValidationError as exc:
-        raise HTTPException(status_code=413, detail=str(exc)) from exc
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except finance.FinanceRecordNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
