@@ -8,6 +8,7 @@ from app.api.dependencies import get_current_user, require_financial_data_enable
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import FNBImportCommitResponse, ImportRecordResponse
 from app.schemas.imports import FNBImportPreview, FNBTransactionPreview
+from app.services import finance
 from app.services.finance import (
     FinanceRecordNotFoundError,
     FinanceValidationError,
@@ -34,6 +35,7 @@ async def preview_fnb_csv(
     ],
 ) -> FNBImportPreview:
     """Parse an authenticated FNB CSV upload in memory without persisting it."""
+    finance.record_sensitive_access(_current_user, "preview", "fnb_statement")
     try:
         if not file.filename or not file.filename.casefold().endswith(".csv"):
             raise HTTPException(
@@ -146,6 +148,7 @@ async def confirm_fnb_csv_import(
 def read_import_history(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> list[dict]:
+    finance.record_sensitive_access(current_user, "read", "import_history")
     return list_import_records(current_user)
 
 @router.get(
@@ -157,6 +160,7 @@ def read_import(
     import_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> dict:
+    finance.record_sensitive_access(current_user, "read", "import_record")
     try:
         return get_import_record(current_user, import_id)
     except FinanceRecordNotFoundError as exc:
