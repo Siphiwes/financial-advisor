@@ -19,6 +19,7 @@
 - Access-token lifetime is constrained to 5-60 minutes and defaults to 15 minutes.
 - The current-user dependency reloads the account from Cloudant and checks account status and token version on every protected request.
 - User email lookup document IDs use a keyed HMAC. Raw email addresses are stored only in the user document, not in its Cloudant document ID.
+- Password changes and all-session revocation require current-password verification.
 
 ## Financial data safeguards implemented
 
@@ -30,29 +31,31 @@
 - The original uploaded statement is not stored. The import stores a SHA-256 file hash and import metadata.
 - Stable transaction identifiers provide retry-safe duplicate detection across overlapping statements.
 - Transaction corrections preserve the originally imported values and record before/after changes.
+- Imported monetary values are normalized and rejected if they exceed the 18-digit, two-decimal application model.
 - Amounts use decimal strings in storage and Decimal calculations.
+- User export and password-confirmed account/data deletion are implemented. Both are bounded at 10,000 documents per collection and do not include original statement files.
 
 ## AI data handling
 
 - FINANCIAL_AI_ENABLED defaults to false and the AI route also requires FINANCIAL_DATA_ENABLED.
 - The AI route requires explicit per-request consent before calling IBM watsonx.ai.
 - Financial chat sends the user's question and an aggregate summary of income, expenses, transfers, cash flow, category totals and date range.
-- Transaction-category suggestions send only one user-selected transaction's date, description, amount and currency plus the active category names/types, after separate explicit consent. Account IDs, references and uploaded statement files are excluded. The suggestion is validated against allowed categories and is not applied automatically.
+- Transaction-category suggestions send only one user-selected transaction's date, description, amount and currency plus active category names/types, after separate explicit consent. Account IDs, references and uploaded statement files are excluded. The suggestion is validated against allowed categories and is not applied automatically.
 - The current chat route does not persist questions or responses.
 - Never place secrets or financial information in provider error logs.
 - Review provider region, project permissions, retention and applicable contractual/privacy terms before enabling this integration.
 
-## Remaining release blockers
+## Audit coverage and remaining release blockers
 
-Do not set FINANCIAL_DATA_ENABLED=true for general use until these items are implemented and verified:
-- User-facing data export and deletion, including related import metadata.
-- Explicit retention periods and deletion schedules.
-- Automated backups, access controls for backups and a tested restoration procedure.
-- Audit events for account, transaction, import and administrative operations.
-- Rate limiting and abuse controls for registration and login.
-- Email verification, password reset, MFA, account recovery and session revocation.
-- Operational monitoring, incident response and credential rotation procedures.
-- Privacy and security review, including the hosting region and any cross-border data processing.
+- Current audit events cover selected create, update, delete and import operations. They do not yet record every sensitive read, export, account deletion or administrative event. Audit-write failures are logged by type but are not yet connected to an operational alert.
+- Define explicit retention periods and deletion schedules.
+- Configure automated backups, backup access controls and a tested restoration procedure.
+- Add distributed rate limiting and abuse controls for registration, login, import and AI requests.
+- Implement email verification, password reset, MFA and account recovery.
+- Add operational monitoring, alerting, incident response and credential-rotation procedures.
+- Complete privacy/security review, including the hosting region and any cross-border data processing.
+
+Keep FINANCIAL_DATA_ENABLED=false for general use until the remaining safeguards have been implemented and verified.
 
 ## FNB import constraints
 
