@@ -902,7 +902,13 @@ def create_debt(user: AuthenticatedUser, payload) -> dict:
 def list_debts(user: AuthenticatedUser) -> list[dict]:
     """List active and paid debts owned by the current user."""
     items, _ = _list_records(user.id, "debts", limit=1000)
-    return sorted(items, key=lambda item: (item.get("status") == "paid", item.get("creditor", "").casefold()))
+    return sorted(
+        items,
+        key=lambda item: (
+            item.get("status") == "paid",
+            item.get("creditor", "").casefold(),
+        ),
+    )
 
 
 def update_debt(user: AuthenticatedUser, debt_id: str, changes: dict) -> dict:
@@ -938,8 +944,12 @@ def debt_summary(user: AuthenticatedUser) -> DebtSummaryResponse:
     debts = list_debts(user)
     transactions, capped = _list_all_records(user.id, "transactions")
     if capped:
-        raise FinanceValidationError("Debt-to-income analysis requires a complete transaction history.")
-    categories = {item["name"].casefold(): item["kind"] for item in list_categories(user)}
+        raise FinanceValidationError(
+            "Debt-to-income analysis requires a complete transaction history."
+        )
+    categories = {
+        item["name"].casefold(): item["kind"] for item in list_categories(user)
+    }
     today = date.today()
     cutoff = today - timedelta(days=90)
     income_by_currency: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
@@ -957,7 +967,10 @@ def debt_summary(user: AuthenticatedUser) -> DebtSummaryResponse:
     for currency in currencies:
         group = [item for item in debts if item["currency"] == currency]
         active = [item for item in group if item.get("status") == "active"]
-        original_total = sum((Decimal(str(item["original_amount"])) for item in group), Decimal("0"))
+        original_total = sum(
+            (Decimal(str(item["original_amount"])) for item in group),
+            Decimal("0"),
+        )
         outstanding = sum((Decimal(str(item["current_balance"])) for item in active), Decimal("0"))
         repayments = sum((Decimal(str(item["monthly_payment"])) for item in active), Decimal("0"))
         monthly_income = income_by_currency[currency] / Decimal("3")
@@ -968,7 +981,9 @@ def debt_summary(user: AuthenticatedUser) -> DebtSummaryResponse:
             history = item.get("balance_history") or []
             if len(history) >= 2:
                 has_history = True
-                balance_change += Decimal(str(history[-1]["balance"])) - Decimal(str(history[-2]["balance"]))
+                latest_balance = Decimal(str(history[-1]["balance"]))
+                previous_balance = Decimal(str(history[-2]["balance"]))
+                balance_change += latest_balance - previous_balance
         trend = (
             "increasing" if balance_change > 0 else
             "decreasing" if balance_change < 0 else
@@ -1005,7 +1020,8 @@ def full_financial_context(user: AuthenticatedUser) -> dict:
         records, has_more = _list_records(user.id, collection, limit=limit)
         if has_more:
             raise FinanceValidationError(
-                f"The {collection} collection exceeds the complete AI context limit. No records were omitted."
+                f"The {collection} collection exceeds the complete AI context limit. "
+                "No records were omitted."
             )
         data[collection] = records
     data["financial_summary"] = financial_summary(user).model_dump(mode="json")
