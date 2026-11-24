@@ -137,7 +137,8 @@ async def ask_financial_advisor(question: str, financial_summary: dict) -> tuple
 
     system_message = (
         "You are an AI assistant for personal financial education and planning. "
-        "Use only the verified financial data supplied in the current request, which may be aggregate figures or a specifically user-approved transaction. "
+        "Use only verified financial data supplied in the current request. It may be "
+        "aggregate figures or one specifically user-approved transaction. "
         "Never invent transaction details, balances, income, expenses, rates, fees, "
         "or financial facts. If the supplied summary does not contain enough "
         "information, say so and ask what additional verified information is needed. "
