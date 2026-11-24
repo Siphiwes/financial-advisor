@@ -539,7 +539,6 @@ def _fnb_transaction_record_id(account_id: str, transaction) -> str:
         "description": transaction.description.strip(),
         "reference": transaction.reference or "",
         "amount": _decimal_text(transaction.amount),
-        "service_fee": _decimal_text(transaction.service_fee),
         "balance_after": _decimal_text(transaction.balance),
     }
     canonical = json.dumps(fingerprint, sort_keys=True, separators=(",", ":"))
