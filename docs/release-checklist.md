@@ -144,3 +144,17 @@ Still requires IBM Cloud/operator action:
 - Decide RPO and RTO and document evidence.
 
 The audit collection is user-scoped and is deleted with the account. It is not an immutable compliance archive. Audit coverage is improved but does not yet include every authentication, administrative, export/deletion or operational event. Do not describe this as complete compliance audit logging.
+
+
+## Shared rate-limit service
+
+The application now supports Redis-backed authentication rate limits, but the limiter is disabled by default.
+
+- [ ] Provision a private Redis-compatible service with TLS.
+- [ ] Store REDIS_URL in a Code Engine secret and reference it in the application.
+- [ ] Set APP_ENV=production and AUTH_RATE_LIMIT_ENABLED=true.
+- [ ] Confirm Code Engine's observed socket peer behavior before relying on peer-based limits; do not trust arbitrary X-Forwarded-For headers.
+- [ ] Verify HTTP 429 and Retry-After behavior across multiple application instances.
+- [ ] Verify the app fails closed with HTTP 503 if the shared store is unavailable.
+
+Do not enable public registration or broader user access before this has been verified.
