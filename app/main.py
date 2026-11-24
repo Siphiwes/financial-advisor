@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.diagnostics import router as diagnostics_router
+from app.api.routes.finance import router as finance_router
 from app.api.routes.imports import router as imports_router
 
 # Loads a local .env file when present. Code Engine supplies deployed values
@@ -16,19 +17,20 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title="Financial Advisor API",
         description="Backend API for the AI Personal Finance Advisor",
-        version="0.1.0",
+        version="0.2.0",
     )
 
     application.include_router(diagnostics_router)
     application.include_router(auth_router)
     application.include_router(imports_router)
+    application.include_router(finance_router)
 
     @application.get("/", tags=["system"])
     def read_root() -> dict[str, str]:
         return {
             "application": "Financial Advisor API",
             "status": "running",
-            "version": "0.1.0",
+            "version": "0.2.0",
         }
 
     @application.get("/health", tags=["system"])
