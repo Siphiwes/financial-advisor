@@ -45,8 +45,8 @@ async def chat_with_advisor(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Explicit consent is required before an aggregated financial summary "
-                "and your question are sent to IBM watsonx.ai."
+                "Explicit consent is required before your complete saved financial records "
+                "and question are sent to IBM watsonx.ai."
             ),
         )
 
@@ -62,7 +62,7 @@ async def chat_with_advisor(
     except finance.FinanceValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    summary_data = summary.model_dump(mode="json")
+    summary_data = summary
     try:
         answer, model_id = await ask_financial_advisor(
             payload.question,
@@ -109,8 +109,8 @@ async def suggest_transaction_category(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Explicit consent is required before the selected transaction's "
-                "date, description, amount and currency are sent to IBM watsonx.ai."
+                "Explicit consent is required before the selected transaction, including its "
+                "description, reference, account identifier and stored fields, is sent to IBM watsonx.ai."
             ),
         )
 
