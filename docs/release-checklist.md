@@ -44,28 +44,25 @@ Confirm:
 - CLOUDANT_DIAGNOSTICS_TOKEN is not referenced by the application after connectivity testing.
 - No secret values are stored in image build arguments or plain environment variables.
 
-## 4. Feature gates
+## 4. Feature gates for personal use
 
-The defaults are intentionally safe:
+The defaults remain disabled:
 
 - FINANCIAL_DATA_ENABLED=false
 - FINANCIAL_AI_ENABLED=false
 
-The application, login and preview interface can be smoke-tested while these flags are false. Persistent account/transaction/budget/goal APIs and confirmed FNB imports remain disabled until the financial-data release approval is complete.
+This deployment is intended for one owner, not public registration or commercial multi-user access. Keep registration invitation-only and do not share the application publicly.
 
-Before setting FINANCIAL_DATA_ENABLED=true, complete all of the following:
-- [ ] Define retention periods and deletion handling for primary data and backups.
-- [ ] Configure automated Cloudant backups, protect backup access and complete a restore test.
-- [ ] Verify user export and password-confirmed account deletion, including the 10,000-record-per-collection limit.
-- [ ] Expand audit coverage to sensitive reads, exports, account deletion and administrative operations; set alerts for audit-write failures.
-- [ ] Configure distributed rate limiting and abuse protection for registration, login, imports and AI.
-- [ ] Complete the required identity lifecycle controls for the intended audience, including email verification, password reset, MFA and account recovery, or document an approved restricted owner-only operating model.
-- [ ] Establish monitoring, incident response, credential rotation and an access-review process.
-- [ ] Complete the privacy/security assessment, including POPIA and the Frankfurt cross-border processing arrangements.
+Before enabling FINANCIAL_DATA_ENABLED for personal use:
+- [ ] Confirm the owner can sign in and the account email is verified.
+- [ ] Confirm the real FNB CSV preview matches the source statement before the first import.
+- [ ] Confirm export and account deletion endpoints are available.
+- [ ] Understand that automated backup and restore are intentionally out of scope. Cloudant data loss or accidental deletion may be permanent.
+- [ ] Keep credentials and financial records out of GitHub, logs and email.
 
-Do not set FINANCIAL_DATA_ENABLED=true simply to make a deployment smoke test pass.
+The owner has explicitly deferred MFA, a separate security-testing phase, Redis provisioning, backup/restore work and a formal POPIA/commercial compliance review. Do not present those controls as completed.
 
-Keep FINANCIAL_AI_ENABLED=false until the IBM watsonx.ai project, model, region, credentials, retention terms, user notice and data-sharing approval are all verified. AI requests also require explicit user consent.
+Keep FINANCIAL_AI_ENABLED=false until the existing IBM watsonx.ai integration has the correct Frankfurt project, model ID, API version and credentials. Keep explicit per-request consent enabled. Do not send raw bank statements or full transaction histories to the AI provider.
 
 ## 5. Build and deploy
 
