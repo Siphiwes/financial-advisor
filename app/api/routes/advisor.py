@@ -11,7 +11,12 @@ from app.integrations.watsonx import (
     WatsonxProviderError,
     ask_financial_advisor,
 )
-from app.schemas.advisor import AdvisorChatRequest, AdvisorChatResponse
+from app.schemas.advisor import (
+    AdvisorChatRequest,
+    AdvisorChatResponse,
+    TransactionCategorySuggestionRequest,
+    TransactionCategorySuggestionResponse,
+)
 from app.schemas.auth import AuthenticatedUser
 from app.services import finance
 
@@ -79,5 +84,104 @@ async def chat_with_advisor(
             "Aggregated income, expenses, transfers and net cash flow by currency",
             "Aggregated expenses by category",
             "The selected date range",
+        ],
+    )
+
+
+
+@router.post(
+    "/transactions/{transaction_id}/suggest-category",
+    response_model=TransactionCategorySuggestionResponse,
+    summary="Suggest a category for one transaction after explicit data-sharing consent",
+)
+async def suggest_transaction_category(
+    transaction_id: str,
+    payload: TransactionCategorySuggestionRequest,
+    current_user: CurrentUser,
+) -> TransactionCategorySuggestionResponse:
+    """Send only one user-selected transaction and allowed category names to AI."""
+    if payload.consent_to_share_transaction is not True:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Explicit consent is required before the selected transaction's "
+                "date, description, amount and currency are sent to IBM watsonx.ai."
+            ),
+        )
+
+    try:
+        transaction = finance.get_transaction(current_user, transaction_id)
+        categories = finance.list_categories(current_user)
+    except finance.FinanceRecordNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="The transaction was not found.") from exc
+
+    allowed_categories = [
+        {"name": item["name"], "kind": item["kind"]}
+        for item in categories
+        if item.get("is_active", True)
+    ]
+    if not allowed_categories:
+        raise HTTPException(status_code=422, detail="No active categories are available.")
+
+    approved_transaction = {
+        "transaction_date": transaction["transaction_date"],
+        "description": transaction["description"],
+        "amount": transaction["amount"],
+        "currency": transaction["currency"],
+    }
+    question = (
+        "Choose the single best category for this transaction from the allowed "
+        "categories in the supplied data. Return only a JSON object with two keys: "
+        "category (exactly one allowed category name) and explanation (a short "
+        "reason based only on the supplied transaction fields). Do not invent "
+        "merchant information or other facts."
+    )
+    shared_data = {
+        "selected_transaction": approved_transaction,
+        "allowed_categories": allowed_categories,
+    }
+
+    try:
+        answer, model_id = await ask_financial_advisor(question, shared_data)
+    except WatsonxConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="IBM watsonx.ai is not configured.",
+        ) from exc
+    except WatsonxProviderError as exc:
+        logger.warning("watsonx.ai category suggestion failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="The AI category suggestion could not be completed.",
+        ) from exc
+
+    try:
+        suggestion = json.loads(answer.strip())
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI advisor returned an invalid category suggestion.",
+        ) from exc
+
+    selected_category = suggestion.get("category") if isinstance(suggestion, dict) else None
+    explanation = suggestion.get("explanation") if isinstance(suggestion, dict) else None
+    allowed_names = {item["name"] for item in allowed_categories}
+    if selected_category not in allowed_names or not isinstance(explanation, str):
+        raise HTTPException(
+            status_code=502,
+            detail="The AI advisor returned a category outside the allowed list.",
+        )
+
+    return TransactionCategorySuggestionResponse(
+        model_id=model_id,
+        transaction_id=transaction_id,
+        suggested_category=selected_category,
+        explanation=explanation.strip()[:500],
+        applied=False,
+        data_shared=[
+            "Selected transaction date",
+            "Selected transaction description",
+            "Selected transaction amount and currency",
+            "Available category names and types",
         ],
     )
