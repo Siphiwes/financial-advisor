@@ -18,7 +18,7 @@ Before persistent real-data use, provide clear user information covering:
 
 ## AI processing
 
-The AI advisor is separately disabled by default. Each AI request requires a consent flag. When consent is given, the backend sends the user's question and an aggregated financial summary to IBM watsonx.ai. The summary includes currency-level income, expenses, transfers, net cash flow, expense totals by category and the selected date range. Raw transaction descriptions, references, account identifiers and statement files are not sent by the current integration. The question and response are not stored by the chat endpoint.
+The AI advisor is separately disabled by default. Each AI request requires a consent flag. When chat consent is given, the backend sends the user's question and an aggregated financial summary to IBM watsonx.ai. The summary includes currency-level income, expenses, transfers, net cash flow, expense totals by category and the selected date range. A separate category-suggestion action requires its own consent and sends only the selected transaction's date, description, amount and currency plus the allowed category names/types. Account IDs, references and uploaded statement files are excluded. The question and response are not stored by the current endpoints.
 
 AI processing must remain disabled until the user-facing notice, provider configuration, data-sharing terms and applicable privacy review have been completed.
 
