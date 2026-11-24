@@ -347,7 +347,7 @@ def update_transaction(
         )
         changes["category_id"] = category["record_id"] if category else None
 
-    data = {**document["data"], **changes, "updated_at": datetime.now(timezone.utc).isoformat()}
+    data = {**document["data"], **changes, "updated_at": datetime.now(UTC).isoformat()}
     try:
         update_user_scoped_document(
             client, database, current_user.id, "transactions", transaction_id, data
@@ -376,8 +376,8 @@ def delete_transaction(
     data = {
         **document["data"],
         "is_deleted": True,
-        "deleted_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "deleted_at": datetime.now(UTC).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     try:
         update_user_scoped_document(
@@ -440,7 +440,7 @@ def update_category(
     data = {
         **document["data"],
         **payload.model_dump(exclude_unset=True, mode="json"),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     try:
         update_user_scoped_document(
@@ -519,7 +519,7 @@ def update_budget(
     data = {
         **document["data"],
         **changes,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     try:
         update_user_scoped_document(
@@ -818,7 +818,7 @@ def update_goal(
     data = {
         **document["data"],
         **changes,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     try:
         update_user_scoped_document(client, database, current_user.id, "goals", goal_id, data)
