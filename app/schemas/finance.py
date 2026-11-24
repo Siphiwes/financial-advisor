@@ -6,10 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-
 AccountType = Literal["cheque", "savings", "credit_card", "investment", "loan", "other"]
 BudgetPeriod = Literal["weekly", "monthly", "quarterly", "yearly"]
-
 
 class FinancialAccountCreate(BaseModel):
     """Create an account record without collecting online banking credentials."""
@@ -20,14 +18,12 @@ class FinancialAccountCreate(BaseModel):
     currency: str = Field(default="ZAR", pattern=r"^[A-Z]{3}$")
     account_last_four: str = Field(pattern=r"^\d{4}$")
 
-
 class FinancialAccountUpdate(BaseModel):
     """Fields an account owner may change."""
 
     display_name: str | None = Field(default=None, min_length=1, max_length=80)
     account_type: AccountType | None = None
     is_active: bool | None = None
-
 
 class FinancialAccountResponse(BaseModel):
     id: str
@@ -39,7 +35,6 @@ class FinancialAccountResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
 
 class TransactionCreate(BaseModel):
     """Create a manual transaction using a user-owned account."""
@@ -61,7 +56,6 @@ class TransactionCreate(BaseModel):
             raise ValueError("Description cannot be blank.")
         return value.strip()
 
-
 class TransactionUpdate(BaseModel):
     """User-editable transaction fields, with correction history preserved."""
 
@@ -71,7 +65,6 @@ class TransactionUpdate(BaseModel):
     amount: Decimal | None = Field(default=None, max_digits=18, decimal_places=2)
     category: str | None = Field(default=None, max_length=80)
     notes: str | None = Field(default=None, max_length=2000)
-
 
 class TransactionResponse(BaseModel):
     id: str
@@ -92,13 +85,11 @@ class TransactionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-
 class TransactionListResponse(BaseModel):
     items: list[TransactionResponse]
     limit: int
     offset: int
     has_more: bool
-
 
 class BudgetCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -117,7 +108,6 @@ class BudgetCreate(BaseModel):
             raise ValueError("End date cannot be earlier than start date.")
         return value
 
-
 class BudgetUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     category: str | None = Field(default=None, min_length=1, max_length=80)
@@ -125,7 +115,6 @@ class BudgetUpdate(BaseModel):
     period: BudgetPeriod | None = None
     end_date: date | None = None
     is_active: bool | None = None
-
 
 class BudgetResponse(BaseModel):
     id: str
@@ -140,14 +129,12 @@ class BudgetResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-
 class GoalCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     description: str | None = Field(default=None, max_length=1000)
     target_amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
     currency: str = Field(default="ZAR", pattern=r"^[A-Z]{3}$")
     target_date: date | None = None
-
 
 class GoalUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -157,7 +144,6 @@ class GoalUpdate(BaseModel):
     )
     target_date: date | None = None
     is_active: bool | None = None
-
 
 class GoalResponse(BaseModel):
     id: str
@@ -171,7 +157,6 @@ class GoalResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-
 class CurrencySummary(BaseModel):
     currency: str
     income: Decimal
@@ -179,13 +164,11 @@ class CurrencySummary(BaseModel):
     net_cash_flow: Decimal
     transaction_count: int
 
-
 class CategorySummary(BaseModel):
     category: str
     currency: str
     expenses: Decimal
     transaction_count: int
-
 
 class FinancialSummaryResponse(BaseModel):
     from_date: date | None
@@ -193,7 +176,6 @@ class FinancialSummaryResponse(BaseModel):
     currencies: list[CurrencySummary]
     expenses_by_category: list[CategorySummary]
     data_limit_reached: bool = False
-
 
 class FNBImportCommitResponse(BaseModel):
     import_id: str
@@ -205,20 +187,16 @@ class FNBImportCommitResponse(BaseModel):
     account_last_four: str
     message: str
 
-
 CategoryKind = Literal["income", "expense", "transfer"]
-
 
 class CategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     kind: CategoryKind
 
-
 class CategoryUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     kind: CategoryKind | None = None
     is_active: bool | None = None
-
 
 class CategoryResponse(BaseModel):
     id: str
@@ -228,7 +206,6 @@ class CategoryResponse(BaseModel):
     is_active: bool
     created_at: datetime | None
     updated_at: datetime | None
-
 
 class ImportRecordResponse(BaseModel):
     id: str
