@@ -1,0 +1,38 @@
+# Git metadata and repository-only files
+.git
+.github
+.gitignore
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+.venv
+venv
+env
+ENV
+
+# Python bytecode and caches
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+**/.pytest_cache
+.ruff_cache
+**/.ruff_cache
+.mypy_cache
+**/.mypy_cache
+
+# Test and coverage artefacts
+tests
+.coverage
+.coverage.*
+htmlcov
+coverage.xml
+
+# Documentation and local logs
+docs
+README.md
+*.log
