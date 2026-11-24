@@ -1,5 +1,6 @@
 """Consent-based AI financial advisor endpoint."""
 
+import json
 import logging
 from typing import Annotated
 
