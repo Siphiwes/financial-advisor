@@ -26,6 +26,12 @@
     return node;
   }
 
+  function localDateString() {
+    const now = new Date();
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+  }
+
   function money(value, currency) {
     const amount = Number(value);
     if (!Number.isFinite(amount)) return "Not available";
@@ -383,7 +389,7 @@
             method: "POST",
             body: JSON.stringify({
               amount: Number(amount.value).toFixed(2),
-              transaction_date: new Date().toISOString().slice(0, 10),
+              transaction_date: localDateString(),
               direction: direction.value,
             }),
           });
