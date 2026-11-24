@@ -99,6 +99,11 @@
     state.categories = [];
     state.selectedFile = null;
     state.importPreview = null;
+    ["password","register-password","registration-invite","password-current",
+     "password-new","revoke-current-password","delete-password"].forEach((id) => {
+      const field = $(id);
+      if (field) field.value = "";
+    });
     $("workspace").classList.add("hidden");
     $("login-panel").classList.remove("hidden");
     $("register-panel").classList.add("hidden");
@@ -848,11 +853,13 @@
     }
   });
 
-  $("delete-confirmation").addEventListener("input", () => {
+  function updateDeleteButtonState() {
     $("delete-account-button").disabled =
       $("delete-confirmation").value.trim() !== "DELETE" ||
       !$("delete-password").value;
-  });
+  }
+  $("delete-confirmation").addEventListener("input", updateDeleteButtonState);
+  $("delete-password").addEventListener("input", updateDeleteButtonState);
 
   $("delete-account-button").addEventListener("click", async () => {
     if (
