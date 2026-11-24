@@ -148,12 +148,18 @@ async def preview_fnb_pdf(
     )
 
 @router.post(
-    "/fnb/csv/confirm",
+    "/fnb/confirm",
     response_model=FNBImportCommitResponse,
-    summary="Confirm and import an FNB CSV into the selected account",
+    summary="Confirm and import an FNB PDF or CSV statement",
     dependencies=[Depends(require_financial_data_enabled)],
 )
-async def confirm_fnb_csv_import(
+@router.post(
+    "/fnb/csv/confirm",
+    response_model=FNBImportCommitResponse,
+    include_in_schema=False,
+    dependencies=[Depends(require_financial_data_enabled)],
+)
+async def confirm_fnb_import(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     account_id: Annotated[
         str,
@@ -165,30 +171,41 @@ async def confirm_fnb_csv_import(
     ],
     file: Annotated[
         UploadFile,
-        File(description="FNB transaction-history export in CSV format"),
+        File(description="FNB transaction-history export in CSV or PDF format"),
     ],
 ) -> FNBImportCommitResponse:
-    """Persist a confirmed FNB export after validation and account matching."""
+    """Persist explicitly confirmed transactions, never the original statement file."""
     try:
         if consent is not True:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Explicit confirmation is required before importing transactions.",
             )
-        if not file.filename or not file.filename.casefold().endswith(".csv"):
+        extension = (file.filename or "").rsplit(".", 1)[-1].casefold()
+        if extension not in {"csv", "pdf"}:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail="Upload an FNB CSV file with a .csv extension.",
+                detail="Upload an FNB CSV or PDF statement.",
             )
 
         content = await file.read(MAX_CSV_BYTES + 1)
         if len(content) > MAX_CSV_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="The uploaded CSV file exceeds the 20 MB limit.",
+                detail="The uploaded statement exceeds the 20 MB limit.",
             )
-        statement = parse_fnb_csv(content)
+        if extension == "pdf":
+            statement = parse_fnb_pdf(content)
+            source_format = "FNB_PDF"
+        else:
+            statement = parse_fnb_csv(content)
+            source_format = "FNB_CSV"
     except FNBCSVValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except FNBPDFValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
@@ -197,7 +214,13 @@ async def confirm_fnb_csv_import(
         await file.close()
 
     try:
-        return commit_fnb_import(current_user, account_id, statement, content)
+        return commit_fnb_import(
+            current_user,
+            account_id,
+            statement,
+            content,
+            source_format=source_format,
+        )
     except FinanceRecordNotFoundError as exc:
         raise HTTPException(status_code=404, detail="The selected account was not found.") from exc
     except FinanceValidationError as exc:
