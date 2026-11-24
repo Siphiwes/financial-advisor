@@ -217,3 +217,14 @@ class FinancialSummary(FinanceRequest):
     transaction_count: int
     unclassified_count: int
     category_totals: dict[str, Money]
+
+
+class GoalContribution(FinanceRequest):
+    id: RecordId
+    goal_id: RecordId
+    amount: PositiveMoney
+    currency: CurrencyCode
+    contribution_date: date
+    note: str | None
+    created_at: datetime
+    updated_at: datetime
