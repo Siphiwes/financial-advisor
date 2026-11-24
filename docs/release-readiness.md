@@ -93,7 +93,7 @@ Before the one-time release:
 5. Confirm how the specific export represents reversals, transfers, pending transactions, fees, duplicate-looking rows and statement summary lines.
 6. Only after backup/restore and privacy controls pass should persistent import be enabled and the account holder confirm the import.
 
-The preview currently displays only the first 10 rows. The import confirmation processes the full validated file. For a production release, provide a way for the account holder to inspect all rows or download a complete parsed preview before confirming a large statement.
+The preview now returns all validated transaction rows up to the parser limit of 10,000, allowing the account holder to inspect the entire parsed statement before confirmation. Review the browser performance against an actual FNB export as part of release acceptance.
 
 PDF, OFX, QIF and direct FNB Open Banking integration are not implemented in this release.
 
