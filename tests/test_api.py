@@ -49,3 +49,12 @@ def test_security_headers_are_applied() -> None:
     assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+
+def test_private_api_responses_are_not_cached() -> None:
+    response = client.get("/api/v1/privacy/export")
+
+    assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
