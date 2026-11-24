@@ -1,95 +1,70 @@
 # AI Personal Finance Advisor
 
-An AI-powered personal finance application designed initially for South African users. The system will help users understand transactions, spending, budgets, cash flow and financial goals, with AI-assisted explanations based on verified financial data.
+A South Africa-focused personal finance application built around user-authorized financial records. The first bank import workflow supports First National Bank (FNB) transaction-history CSV exports.
 
-## Current implementation status
+## Implemented in the current release branch
 
-**Implemented**
-- FastAPI application and IBM Cloud Code Engine deployment.
-- IBM Cloudant IAM connection and protected connectivity diagnostics.
-- Invite-only account registration with Argon2id password hashing.
-- Short-lived signed JWT access tokens.
-- Authenticated current-user endpoint.
-- Cloudant helpers that namespace finance records by authenticated user ID.
-- Automated tests and GitHub Actions lint/test workflow.
+- FastAPI application and responsive browser interface served from one container.
+- IBM Cloudant IAM connection and user-scoped data access.
+- Invite-only registration, Argon2id password hashing and short-lived JWT access tokens.
+- Authenticated financial account, transaction, category, budget and goal APIs.
+- FNB CSV preview and separate user-confirmed import with a 20 MB upload limit.
+- Statement digest, deterministic transaction identifiers and retry-aware import processing.
+- Financial summaries and budget progress calculated by application code.
+- Goal contributions with idempotency keys.
+- Optional IBM watsonx.ai integration behind operator approval and per-user consent.
+- GitHub Actions CI for Ruff linting and pytest.
 
-**Not yet implemented**
-- Full production identity lifecycle (email verification, password reset, MFA and recovery).
-- Finance account and transaction APIs.
-- Secure bank statement import and document storage.
-- Transaction categorization and financial analytics.
-- watsonx.ai integration.
+The imported CSV file is parsed in memory and is not retained. After confirmation, normalized transaction records and statement digest/import metadata are saved in Cloudant. The application does not request or store FNB online-banking credentials, PINs or one-time PINs.
 
-Do not treat planned components as working functionality. Authentication must be configured and deployed before registration can be used.
+## Important release limitations
 
-## Technology baseline
+This is the first application release, not a certification of production readiness. Before accepting other users' real financial records, complete email verification, password recovery, MFA, distributed rate limiting, a full audit trail, user export and deletion, backup/restore testing, incident response and a POPIA/cross-border processing review.
 
-- Python 3.12
-- FastAPI and Uvicorn
+The AI advisor is disabled by default. It must not be enabled until the operator has approved the relevant IBM watsonx.ai data-processing arrangements and users have actively consented. The AI receives the user's question and application-calculated aggregates only, not raw statements or transaction descriptions.
+
+The importer still requires validation against an actual FNB CSV exported by the account holder before relying on it for financial decisions.
+
+## Technology
+
+- Python 3.12, FastAPI and Uvicorn
 - IBM Cloud Code Engine
 - IBM Cloudant
-- IBM watsonx.ai (planned)
-- IBM Cloud Object Storage (planned for document storage)
+- IBM watsonx.ai (optional, disabled by default)
+- Static HTML, CSS and JavaScript
 
-The initial architecture is a modular monolith. Separate services or Kubernetes will only be introduced if actual scaling or operational requirements justify them.
-
-## Repository structure
-
-```text
-app/
-  api/routes/       HTTP endpoints
-  core/             Application configuration and shared concerns
-  database/         Cloudant access and persistence
-  integrations/     External provider clients
-  models/            Domain and persistence models
-  schemas/           API request and response validation
-  services/          Application and business logic
-tests/               Automated tests
-docs/                Architecture, security and delivery documentation
-.github/workflows/   Continuous integration
-```
+The application is a modular monolith. It uses one API container and one Cloudant database. The current workflow does not retain original statement files, so IBM Cloud Object Storage is not required for FNB imports at this stage.
 
 ## Local development
 
 1. Create and activate a Python 3.12 virtual environment.
 2. Install development dependencies:
 
-   ```bash
-   python -m pip install -r requirements-dev.txt
-   ```
+       python -m pip install -r requirements-dev.txt
 
-3. Copy `.env.example` to `.env` and fill in only the values needed for the feature being developed. Never commit `.env`.
+3. Copy .env.example to .env and configure only the services required for development. Never commit .env.
 4. Start the API:
 
-   ```bash
-   uvicorn main:app --reload --host 127.0.0.1 --port 8080
-   ```
+       uvicorn main:app --reload --host 127.0.0.1 --port 8080
 
-5. Open the API at http://127.0.0.1:8080/ and interactive docs at http://127.0.0.1:8080/docs.
+5. Open http://127.0.0.1:8080/ for the application and /docs for API documentation.
 
-## Authentication API
+## Main API areas
 
-- `POST /auth/register`: invite-only registration. Requires the `X-Registration-Invite` header.
-- `POST /auth/token`: exchange email and password for a short-lived bearer token.
-- `GET /auth/me`: return the authenticated account. Requires `Authorization: Bearer <token>`.
-
-Required server-side settings: `JWT_SECRET_KEY`, `AUTH_EMAIL_INDEX_KEY`, and (to enable registration) `REGISTRATION_INVITE_CODE`. Keep the two cryptographic keys independent and at least 32 bytes long. Do not put their values in source control.
-
-## Tests and code quality
-
-Run tests with `pytest` and lint with `ruff check .`. GitHub Actions runs both on pushes and pull requests to `main`.
-
-## Container build
-
-```bash
-docker build -t financial-advisor:local .
-docker run --rm -p 8080:8080 --env-file .env financial-advisor:local
-```
-
-The container runs as a non-root user. Docker build exclusions are maintained in `.dockerignore`.
+- /auth: invite-only registration, login and current-user identity.
+- /api/v1/accounts: user-owned financial account references.
+- /api/v1/transactions: transaction creation, search, classification and soft deletion.
+- /api/v1/categories: user-defined income, expense and transfer categories.
+- /api/v1/budgets: budgets and budget progress.
+- /api/v1/goals: financial goals and idempotent contributions.
+- /api/v1/analytics: deterministic financial summaries.
+- /imports/fnb/csv: FNB CSV preview, confirmation and import history.
+- /api/v1/privacy/ai-consent and /api/v1/advisor/ask: privacy-controlled AI assistance.
 
 ## Data protection
 
-- Do not put API keys, passwords, tokens, bank statements or real financial data in GitHub issues, commits, tests or logs.
-- Do not import real bank records until user-level authorization, retention, deletion, backup, restore and access controls have been reviewed and tested.
-- Financial amounts must be calculated by deterministic application logic. AI may explain verified results but must not invent balances, transactions or financial metrics.
+- Never commit bank statements, transactions, account numbers, credentials or access tokens to GitHub.
+- Financial account records store an optional last-four-digit suffix only.
+- Original statement files are not retained. Confirmed transaction records are stored separately under the authenticated user's namespace.
+- Every finance query must derive ownership from the authenticated user identity.
+- Financial calculations use Decimal. AI is not authoritative for balances, totals or financial metrics.
