@@ -39,7 +39,7 @@ def _validate_money_precision(value: Decimal | None) -> None:
 
 
 def _import_record_id(user_id: str, account_id: str, content_digest: str) -> str:
-    source = f"{user_id}:{account_id}:{content_digest}".encode("utf-8")
+    source = f"{user_id}:{account_id}:{content_digest}".encode()
     return hashlib.sha256(source).hexdigest()[:32]
 
 
@@ -179,7 +179,7 @@ def confirm_fnb_csv_import(
                 }
             raise FNBImportAlreadyRunningError(
                 "This statement import is already being processed."
-            )
+            ) from None
     else:
         update_user_scoped_document(
             client,
