@@ -69,7 +69,7 @@ def test_privacy_export_remains_available_when_finance_writes_are_disabled(
     try:
         response = client.get("/api/v1/privacy/export")
     finally:
-        app.dependency_overrides.pop(get_user_for_deletion, None)
+        app.dependency_overrides.pop(get_current_user, None)
 
     assert response.status_code == 200
     assert response.json()["original_statement_files_included"] is False
@@ -105,7 +105,7 @@ def test_privacy_delete_remains_available_when_finance_writes_are_disabled(
             json={"current_password": "test-current-password"},
         )
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_user_for_deletion, None)
 
     assert response.status_code == 200
     assert response.json()["deleted"] is True
