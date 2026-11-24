@@ -18,7 +18,7 @@ from app.services.finance import (
 from app.services.fnb_csv import MAX_CSV_BYTES, FNBCSVValidationError, parse_fnb_csv
 
 router = APIRouter(prefix="/imports", tags=["statement imports"])
-PREVIEW_TRANSACTION_LIMIT = 10
+PREVIEW_TRANSACTION_LIMIT = 10_000
 
 @router.post(
     "/fnb/csv/preview",
