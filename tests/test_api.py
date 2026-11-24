@@ -27,3 +27,14 @@ def test_web_workspace_is_served() -> None:
 
     assert response.status_code == 200
     assert "Financial Advisor" in response.text
+
+
+
+def test_web_assets_are_served() -> None:
+    javascript = client.get("/assets/app.js")
+    stylesheet = client.get("/assets/app.css")
+
+    assert javascript.status_code == 200
+    assert "Authorization" in javascript.text
+    assert stylesheet.status_code == 200
+    assert ".topbar" in stylesheet.text
