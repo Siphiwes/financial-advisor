@@ -99,6 +99,12 @@
     state.categories = [];
     state.selectedFile = null;
     state.importPreview = null;
+    $("fnb-file").value = "";
+    $("import-consent").checked = false;
+    $("advisor-consent").checked = false;
+    $("advisor-answer").classList.add("hidden");
+    $("import-preview").classList.add("hidden");
+    $("import-confirm-form").reset();
     ["password","register-password","registration-invite","password-current",
      "password-new","revoke-current-password","delete-password"].forEach((id) => {
       const field = $(id);
