@@ -45,6 +45,9 @@ def create_app() -> FastAPI:
             "camera=(), microphone=(), geolocation=()"
         )
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        if request.url.path.startswith(("/api/", "/auth/", "/imports")):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self'; "
             "style-src-attr 'unsafe-inline'; img-src 'self' data:; "
