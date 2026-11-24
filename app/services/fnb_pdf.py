@@ -13,6 +13,7 @@ import pdfplumber
 from app.services.fnb_csv import (
     MAX_CSV_BYTES,
     MAX_TRANSACTIONS,
+    FNBCSVValidationError,
     FNBStatement,
     FNBTransaction,
     _parse_date,
@@ -63,8 +64,18 @@ class FNBPDFValidationError(ValueError):
     """Raised when a PDF is unreadable or its transaction layout is unsupported."""
 
 
+def _parse_pdf_date(value: str):
+    try:
+        return _parse_date(value)
+    except FNBCSVValidationError as exc:
+        raise FNBPDFValidationError(str(exc)) from exc
+
+
 def _signed_amount(value: str, direction: str) -> Decimal:
-    amount = _parse_decimal(value, required=True)
+    try:
+        amount = _parse_decimal(value, required=True)
+    except FNBCSVValidationError as exc:
+        raise FNBPDFValidationError(str(exc)) from exc
     if amount is None:
         raise FNBPDFValidationError("A PDF transaction is missing its amount.")
     return -abs(amount) if direction.upper() == "DR" else abs(amount)
@@ -110,7 +121,7 @@ def parse_fnb_pdf(content: bytes) -> FNBStatement:
     account_match = _ACCOUNT_NUMBER.search(statement_text)
     balance_match = _CURRENT_BALANCE.search(statement_text)
 
-    statement_date = _parse_date(date_match.group(1)) if date_match else None
+    statement_date = _parse_pdf_date(date_match.group(1)) if date_match else None
     account_digits = re.sub(r"\D", "", account_match.group(1)) if account_match else ""
     account_last_four = account_digits[-4:] if len(account_digits) >= 4 else None
     closing_balance = (
@@ -149,9 +160,12 @@ def parse_fnb_pdf(content: bytes) -> FNBStatement:
             match = _TRANSACTION_ROW.match(line)
             if match:
                 save_current()
-                service_fee = _parse_decimal(match.group("service_fee"))
+                try:
+                    service_fee = _parse_decimal(match.group("service_fee"))
+                except FNBCSVValidationError as exc:
+                    raise FNBPDFValidationError(str(exc)) from exc
                 current_row = {
-                    "date": _parse_date(match.group("date")),
+                    "date": _parse_pdf_date(match.group("date")),
                     "description": [match.group("description").strip()],
                     "service_fee": abs(service_fee) if service_fee is not None else None,
                     "amount": _signed_amount(
