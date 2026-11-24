@@ -53,3 +53,9 @@ class SessionRevocationRequest(BaseModel):
     """Invalidate all existing bearer tokens after verifying the current password."""
 
     current_password: Annotated[str, Field(min_length=1, max_length=128)]
+
+
+
+class AuthenticationActionResponse(BaseModel):
+    message: str
+    sessions_invalidated: bool = False
