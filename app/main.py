@@ -3,6 +3,7 @@
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from app.api.routes.advisor import router as advisor_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.diagnostics import router as diagnostics_router
 from app.api.routes.finance import router as finance_router
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
     application.include_router(auth_router)
     application.include_router(imports_router)
     application.include_router(finance_router)
+    application.include_router(advisor_router)
 
     @application.get("/", tags=["system"])
     def read_root() -> dict[str, str]:
