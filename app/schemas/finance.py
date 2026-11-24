@@ -153,6 +153,7 @@ class GoalResponse(BaseModel):
     currency: str
     target_date: date | None
     saved_amount: Decimal
+    contributions: list[dict] = Field(default_factory=list)
     is_active: bool
     created_at: datetime
     updated_at: datetime
