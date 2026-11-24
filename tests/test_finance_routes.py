@@ -53,3 +53,8 @@ def test_financial_data_gate_returns_503_after_authentication(
 
     assert response.status_code == 503
     assert "disabled" in response.json()["detail"].casefold()
+
+
+def test_debt_endpoints_require_authentication() -> None:
+    assert client.get("/api/v1/debts").status_code == 401
+    assert client.get("/api/v1/analytics/debts").status_code == 401
