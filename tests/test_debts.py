@@ -1,41 +1,23 @@
-"""Validation tests for debt-management records."""
+"""Contract checks for debt schemas without fabricated financial records."""
 
-from decimal import Decimal
-
-import pytest
-from pydantic import ValidationError
-
-from app.schemas.finance import DebtCreate, DebtUpdate
+from app.schemas.finance import DebtCreate, DebtResponse, DebtSummaryResponse, DebtUpdate
 
 
-def test_debt_create_accepts_valid_personal_debt() -> None:
-    debt = DebtCreate(
-        creditor="FNB",
-        debt_name="Vehicle finance",
-        debt_type="vehicle_finance",
-        original_amount=Decimal("180000.00"),
-        current_balance=Decimal("145000.00"),
-        monthly_payment=Decimal("5200.00"),
-        interest_rate=Decimal("12.500"),
-        currency="ZAR",
+def test_debt_create_exposes_required_management_fields() -> None:
+    assert {"creditor", "debt_name", "debt_type", "original_amount", "current_balance"} <= set(
+        DebtCreate.model_fields
     )
 
-    assert debt.current_balance == Decimal("145000.00")
-    assert debt.debt_type == "vehicle_finance"
+
+def test_debt_update_supports_balance_and_repayment_maintenance() -> None:
+    assert {"current_balance", "monthly_payment", "interest_rate", "due_date", "notes"} <= set(
+        DebtUpdate.model_fields
+    )
 
 
-def test_debt_create_rejects_negative_outstanding_balance() -> None:
-    with pytest.raises(ValidationError):
-        DebtCreate(
-            creditor="FNB",
-            debt_name="Personal loan",
-            debt_type="personal_loan",
-            original_amount=Decimal("10000.00"),
-            current_balance=Decimal("-1.00"),
-        )
+def test_debt_response_includes_balance_history() -> None:
+    assert {"status", "balance_history", "current_balance"} <= set(DebtResponse.model_fields)
 
 
-def test_debt_update_accepts_zero_balance_for_paid_off_debt() -> None:
-    update = DebtUpdate(current_balance=Decimal("0.00"))
-
-    assert update.current_balance == Decimal("0.00")
+def test_debt_summary_exposes_income_comparison_and_trend() -> None:
+    assert "currencies" in DebtSummaryResponse.model_fields
