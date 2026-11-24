@@ -235,6 +235,7 @@ def issue_token(payload: LoginRequest, request: Request) -> TokenResponse:
         if (
             not user_document
             or user_document.get("is_active") is not True
+            or user_document.get("email_verified") is False
             or not password_matches
         ):
             raise HTTPException(
