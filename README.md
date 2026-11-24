@@ -130,3 +130,11 @@ The container runs as a non-root user. The Dockerfile copies the same-origin fro
 - Keep financial data disabled until the owner has reviewed the backup/restore limitation, validated a real FNB export, and accepted the remaining personal-use risks. Keep AI disabled until watsonx.ai is configured and validated.
 - Preserve original imported transaction fields when users make corrections.
 - Financial amounts must be calculated using exact decimal arithmetic. AI must not invent balances, transactions or financial metrics.
+
+
+## Debt management and AI context
+
+- Debt records are stored in a dedicated user-scoped Cloudant collection. Each balance update appends a dated balance snapshot so the application can show debt movement over time.
+- Debt overview reports outstanding balances, original amounts, monthly repayments, average monthly income over the most recent 90 days, and monthly repayment-to-income percentage. Income-based ratios are unavailable when no income transactions are recorded.
+- IBM watsonx.ai requests require explicit per-request consent. With consent, the complete saved finance context is sent, including transaction descriptions, references, account identifiers, account metadata, categories, budgets, goals and debts. The application does not silently redact these fields. Original uploaded bank statement files are not stored or sent.
+- Configure `FINANCIAL_DATA_ENABLED=true` to enable all personal finance storage modules. Configure the watsonx.ai credentials and `FINANCIAL_AI_ENABLED=true` separately before AI requests can run.
