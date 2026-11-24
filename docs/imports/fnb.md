@@ -23,7 +23,7 @@ The endpoint requires a valid bearer access token and accepts a multipart upload
 The preview:
 - validates the FNB transaction columns;
 - parses the statement in memory;
-- returns statement metadata and up to 10 transaction rows;
+- returns statement metadata and all validated transaction rows (up to 10,000);
 - masks the account number to its last four digits;
 - rejects files larger than 20 MB or containing more than 10,000 transaction rows.
 
