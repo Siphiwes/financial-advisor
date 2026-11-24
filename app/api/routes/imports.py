@@ -18,8 +18,8 @@ from app.schemas.imports import (
     FNBTransactionPreview,
 )
 from app.services.fnb_csv import (
-    FNBCSVValidationError,
     MAX_CSV_BYTES,
+    FNBCSVValidationError,
     parse_fnb_csv,
 )
 from app.services.fnb_import import (
@@ -163,7 +163,10 @@ async def confirm_fnb_csv(
         logger.warning("FNB statement import failed: %s", type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="The FNB statement could not be imported. Check the import status before retrying.",
+            detail=(
+                "The FNB statement could not be imported. "
+                "Check the import status before retrying."
+            ),
         ) from exc
     finally:
         await file.close()
