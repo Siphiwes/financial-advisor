@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.services.fnb_csv import FNBCSVValidationError, parse_fnb_csv
+from app.services.fnb_csv import MAX_CSV_BYTES, FNBCSVValidationError, parse_fnb_csv
 
 
 def test_rejects_csv_without_fnb_transaction_columns() -> None:
@@ -25,3 +25,14 @@ def test_rejects_fnb_layout_without_transaction_rows() -> None:
 def test_rejects_empty_upload() -> None:
     with pytest.raises(FNBCSVValidationError, match="empty"):
         parse_fnb_csv(b"")
+
+
+def test_rejects_csv_above_20_mb_upload_limit() -> None:
+    content = b"x" * (MAX_CSV_BYTES + 1)
+
+    with pytest.raises(FNBCSVValidationError, match="20 MB limit"):
+        parse_fnb_csv(content)
+
+
+def test_fnb_csv_upload_limit_is_20_mb() -> None:
+    assert MAX_CSV_BYTES == 20 * 1024 * 1024
