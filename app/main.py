@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.advisor import router as advisor_router
@@ -13,6 +13,7 @@ from app.api.routes.diagnostics import router as diagnostics_router
 from app.api.routes.finance import router as finance_router
 from app.api.routes.imports import router as imports_router
 from app.api.routes.privacy import router as privacy_router
+from app.services.finance import FinanceAuditError
 
 # Loads a local .env file when present. Code Engine supplies deployed values
 # through environment variables and does not need a .env file in the image.
@@ -33,6 +34,18 @@ def create_app() -> FastAPI:
     application.include_router(finance_router)
     application.include_router(advisor_router)
     application.include_router(privacy_router)
+
+    @application.exception_handler(FinanceAuditError)
+    async def required_audit_failed(_request, _exc):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "The request was blocked because a required privacy audit "
+                    "event could not be recorded."
+                )
+            },
+        )
     application.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
     @application.middleware("http")

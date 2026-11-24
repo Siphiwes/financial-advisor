@@ -37,3 +37,20 @@
 - Confirm environment variables and secret references without printing secret values.
 - Verify readiness, health, web workspace, API docs and static asset delivery.
 - Test account isolation and feature-gate behaviour after every release.
+
+
+## Cloudant backup and recovery
+
+Use docs/backup-recovery.md and scripts/cloudant-backup.sh / scripts/cloudant-restore.sh. Run backup jobs only in a protected runner with secrets injected at runtime. The application container does not perform backups.
+
+- [ ] Create the COS bucket and dedicated HMAC service credential.
+- [ ] Generate and securely escrow an age identity; backup runners use only the public recipient.
+- [ ] Set CLOUDANT_URL, CLOUDANT_API_KEY, CLOUDANT_DATABASE, AGE_RECIPIENT, COS_BUCKET, COS_ENDPOINT, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION in the protected runner.
+- [ ] Run a backup and confirm encrypted object and checksum are uploaded.
+- [ ] Create a new empty Cloudant recovery database.
+- [ ] Restore using AGE_IDENTITY_FILE, BACKUP_OBJECT and RESTORE_DATABASE.
+- [ ] Verify document counts, authentication, user isolation and database security settings.
+- [ ] Approve recovery time and data-loss objectives.
+- [ ] Configure COS lifecycle only after retention approval.
+
+The scripts are tooling, not evidence that a scheduled backup or restore has run. Do not mark the backup requirement complete until the restore test has succeeded.

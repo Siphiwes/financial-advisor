@@ -45,3 +45,12 @@ Before enabling FINANCIAL_DATA_ENABLED:
 - Complete a privacy and security assessment, including applicable South African POPIA obligations and cross-border transfer requirements.
 
 Obtain qualified legal and privacy review before onboarding other users.
+
+
+## Additional privacy controls
+
+Sensitive reads and exports are recorded as minimal user-scoped audit events before data is returned. Audit records contain action/resource metadata only, not transaction values, descriptions, references or statement contents. If the required audit write fails, the request is blocked.
+
+The current audit collection is deleted with the user's account. It is not an immutable audit archive. Backup snapshots may retain data after live account deletion until the approved backup expiry process removes them. The retention policy template in docs/retention-policy-template.md must be completed and approved before processing real financial records.
+
+Encrypted backup/restore scripts are in scripts/. They require separate IBM Cloud Object Storage credentials and an independently stored age key. No backup is considered verified until a restore into a new empty database has been completed and checked.

@@ -50,6 +50,7 @@ async def chat_with_advisor(
             ),
         )
 
+    finance.record_sensitive_access(current_user, "ai_summary_request", "advisor")
     try:
         summary = finance.financial_summary(
             current_user,
@@ -110,6 +111,7 @@ async def suggest_transaction_category(
             ),
         )
 
+    finance.record_sensitive_access(current_user, "ai_category_request", "advisor")
     try:
         transaction = finance.get_transaction(current_user, transaction_id)
         categories = finance.list_categories(current_user)
