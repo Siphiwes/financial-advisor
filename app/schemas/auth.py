@@ -59,3 +59,16 @@ class SessionRevocationRequest(BaseModel):
 class AuthenticationActionResponse(BaseModel):
     message: str
     sessions_invalidated: bool = False
+
+
+class AccountTokenRequest(BaseModel):
+    token: Annotated[str, Field(min_length=32, max_length=256)]
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: Annotated[str, Field(min_length=32, max_length=256)]
+    new_password: PasswordInput
