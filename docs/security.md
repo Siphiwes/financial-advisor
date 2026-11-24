@@ -27,7 +27,7 @@
 - Account, transaction, category, budget, goal, import and analytics routes require a valid authenticated user.
 - FINANCIAL_DATA_ENABLED defaults to false. Persistent finance endpoints return HTTP 503 until the flag is deliberately enabled.
 - FNB statement preview is authenticated and does not persist statement or transaction contents.
-- FNB confirmation requires explicit consent, an existing user-owned FNB account and a last-four-digit account match.
+- FNB confirmation requires explicit consent, an existing user-owned FNB account and a last-four-digit consistency check. The last four digits alone are not proof of account ownership; the user must select and confirm the intended account.
 - The original uploaded statement is not stored. The import stores a SHA-256 file hash and import metadata.
 - Stable transaction identifiers provide retry-safe duplicate detection across overlapping statements.
 - Transaction corrections preserve the originally imported values and record before/after changes.
