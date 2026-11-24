@@ -1,16 +1,16 @@
 # Development roadmap
 
-This is an ordered plan, not a claim that these features already exist.
+The roadmap separates implemented backend capabilities from the remaining first-release work.
 
-1. **Platform foundation** - modular FastAPI structure, environment template, tests, linting, CI and container hardening.
-2. **Cloudant integration** - IAM authentication, database connection, least-privilege access and diagnostics.
-3. **Identity and authorization foundation** - invite-only registration, Argon2id password hashing, signed short-lived access tokens, current-user validation and user-scoped document IDs.
-4. **Identity lifecycle hardening** - email verification, password reset, MFA, recovery, rate limiting, session revocation and account deletion.
-5. **Core finance data** - user-owned account representation, transaction schema, idempotent imports and audit history.
-6. **Transaction workflows** - manual entry, CSV import, validation, duplicate detection, editing and categorization.
-7. **Finance calculations** - income/expense summaries, cash flow, budgets, recurring payments and financial goals.
-8. **AI assistance** - watsonx.ai integration for classification suggestions, explanations and question answering grounded in verified application data.
-9. **Statement processing** - secure upload, object storage, extraction, validation, user review and deletion controls.
-10. **Production readiness** - privacy review, threat modelling, monitoring, backups, recovery tests, operational cost review and security testing.
+1. **Platform and Cloudant foundation - implemented.** FastAPI, Code Engine deployment baseline, Cloudant IAM connection, protected diagnostics, container hardening and CI.
+2. **Identity foundation - implemented.** Invite-only registration, Argon2id password hashing, signed short-lived access tokens, current-user validation and user-scoped document IDs.
+3. **FNB CSV intake - implemented.** Authenticated preview, 20 MB limit, FNB field parsing and explicit confirmation endpoint.
+4. **Core financial records - backend implementation added.** User-owned account metadata, transaction create/read/update/soft-delete, transaction correction history, categories, budgets, goals and per-currency financial summaries. Persistent routes remain disabled by default pending release safeguards.
+5. **Import reliability - backend implementation added.** Account matching, file hash metadata, deterministic transaction identifiers and duplicate handling for overlapping statements.
+6. **Financial workflows - remaining.** Budget-versus-actual calculations, savings-goal contributions, recurring-payment detection, richer categorisation and exports.
+7. **Identity lifecycle hardening - remaining.** Email verification, password reset, MFA, recovery, rate limiting, session revocation and account deletion.
+8. **AI assistance - remaining.** watsonx.ai integration for grounded categorisation suggestions, explanations and question answering, plus prompt-injection controls and cost limits.
+9. **User interface - remaining.** Web frontend for authentication, statement upload/review, transactions, budgets, goals, dashboard and AI advisor.
+10. **Production readiness - remaining.** Retention/deletion, backup and restore, audit logging, monitoring, incident response, privacy/security review and release runbook.
 
-Each phase should have acceptance criteria, automated tests and a working deployment before the next phase begins. Do not import real financial records until all required protections are in place.
+A successful build or deployment does not establish production readiness. Do not enable persistent real financial data until the safeguards in docs/security.md, docs/privacy.md and docs/operations.md have been completed and verified.
