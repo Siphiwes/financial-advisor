@@ -17,6 +17,7 @@ from app.services.finance import (
     list_import_records,
 )
 from app.services.fnb_csv import MAX_CSV_BYTES, FNBCSVValidationError, parse_fnb_csv
+from app.services.fnb_pdf import FNBPDFValidationError, parse_fnb_pdf
 
 router = APIRouter(prefix="/imports", tags=["statement imports"])
 PREVIEW_TRANSACTION_LIMIT = 10_000
@@ -81,6 +82,68 @@ async def preview_fnb_csv(
         message=(
             "Preview only. The uploaded statement and its transactions were not "
             "saved to Cloudant."
+        ),
+    )
+
+
+@router.post(
+    "/fnb/pdf/preview",
+    response_model=FNBImportPreview,
+    summary="Preview an FNB South Africa PDF statement",
+    status_code=status.HTTP_200_OK,
+)
+async def preview_fnb_pdf(
+    _current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    file: Annotated[
+        UploadFile,
+        File(description="Unencrypted, text-based FNB PDF statement"),
+    ],
+) -> FNBImportPreview:
+    """Extract a supported FNB PDF statement in memory without persisting it."""
+    finance.record_sensitive_access(_current_user, "preview", "fnb_statement")
+    try:
+        if not file.filename or not file.filename.casefold().endswith(".pdf"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Upload an FNB PDF file with a .pdf extension.",
+            )
+        content = await file.read(MAX_CSV_BYTES + 1)
+        if len(content) > MAX_CSV_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="The uploaded PDF file exceeds the 20 MB limit.",
+            )
+        statement = parse_fnb_pdf(content)
+    except FNBPDFValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    finally:
+        await file.close()
+
+    return FNBImportPreview(
+        source_format="FNB PDF",
+        statement_date=statement.statement_date,
+        account_last_four=statement.account_last_four,
+        opening_balance=statement.opening_balance,
+        closing_balance=statement.closing_balance,
+        transaction_count=len(statement.transactions),
+        preview_limit=PREVIEW_TRANSACTION_LIMIT,
+        transactions=[
+            FNBTransactionPreview(
+                effective_date=transaction.effective_date,
+                description=transaction.description,
+                reference=transaction.reference,
+                service_fee=transaction.service_fee,
+                amount=transaction.amount,
+                balance=transaction.balance,
+            )
+            for transaction in statement.transactions[:PREVIEW_TRANSACTION_LIMIT]
+        ],
+        message=(
+            "PDF preview only. The original PDF and extracted transactions were not "
+            "saved to Cloudant. Confirm the dates and amounts before any future import."
         ),
     )
 
