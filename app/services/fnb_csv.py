@@ -42,6 +42,7 @@ class FNBStatement:
 
 
 _HEADER_ALIASES = {
+    "date": "effective_date",
     "effectivedate": "effective_date",
     "transactiondate": "effective_date",
     "valuedate": "effective_date",
@@ -72,6 +73,7 @@ def _parse_date(value: str) -> date:
     cleaned = value.strip()
     formats = (
         "%Y%m%d",
+        "%d %b %Y",
         "%Y-%m-%d",
         "%Y/%m/%d",
         "%d/%m/%Y",
@@ -204,7 +206,7 @@ def parse_fnb_csv(content: bytes) -> FNBStatement:
         raise FNBCSVValidationError("The uploaded CSV file is empty.")
 
     header_index, columns = _find_transaction_header(rows)
-    account_number = _metadata_value(rows[:header_index], {"accountnumber"})
+    account_number = _metadata_value(rows[:header_index], {"accountnumber", "account"})
     account_digits = re.sub(r"\D", "", account_number or "")
     account_last_four = account_digits[-4:] if len(account_digits) >= 4 else None
 
