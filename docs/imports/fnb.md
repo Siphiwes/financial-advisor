@@ -1,40 +1,41 @@
 # FNB statement import
 
-## First supported format
+## Supported format
 
-The first supported input is the FNB South Africa transaction-history CSV export. The parser recognizes these transaction fields:
+The first supported bank import is the FNB South Africa transaction-history CSV export. The parser recognizes the FNB transaction columns: Effective Date, Description, Reference, Service Fee, fee debit/credit indicator, Amount and Balance.
 
-- Effective Date
-- Description
-- Reference
-- Service Fee
-- Debit / Credit indicator for the service fee, where present
-- Amount
-- Balance
+Money values are parsed as Decimal. A minus sign on the transaction amount is treated as a debit. The parser supports UTF-8 with or without BOM and Windows-1252 text encoding.
 
-Amounts are parsed as decimal values, not binary floating-point numbers. A leading or trailing minus sign is treated as a debit. The service-fee debit/credit indicator is applied separately from the transaction amount.
+## User flow
 
-## Preview endpoint
+1. In FNB Online Banking, open My Bank Accounts, select the account, open Transaction History and download CSV.
+2. Sign in to the Personal Finance Advisor.
+3. Add the matching FNB account reference. The account record stores an optional last-four-digit suffix, not the full account number.
+4. Upload the CSV to POST /imports/fnb/csv/preview.
+5. Review the statement date, account suffix, transaction count and preview rows.
+6. Confirm the import using POST /imports/fnb/csv/confirm, passing the selected account ID and the same CSV.
 
-POST /imports/fnb/csv/preview
+Preview parses in memory and does not persist transaction rows. Confirmation saves normalized transaction records to Cloudant under the signed-in user's namespace.
 
-The endpoint requires a valid bearer access token and accepts a multipart upload with a .csv filename.
+## Data retained
 
-The preview:
-- validates the FNB transaction columns;
-- parses the statement in memory;
-- returns statement metadata and up to 10 transaction rows;
-- masks the account number to its last four digits;
-- rejects files larger than 20 MB or containing more than 10,000 transaction rows.
+The application stores original date, description, reference, amount, currency, service fee and balance where supplied by FNB. User classification, merchant override and notes are separate fields. The original CSV bytes and original filename are not retained.
 
-The endpoint does not write the uploaded statement or transaction data to Cloudant. It does not retain the original file. Do not place statement contents, transaction descriptions or account identifiers in logs.
+A SHA-256 digest identifies the exact uploaded file. The import ID is bound to the user and selected FNB account. Transaction identifiers are deterministic and account for repeated identical rows in one statement. Repeating the same file for the same account returns the existing completed import. Overlapping statement exports can skip matching transaction fingerprints already stored.
 
-## Getting the file from FNB
+If a bulk write partially succeeds, the import is marked failed. A retry can identify transactions already written for that import and continue without creating another copy of them.
 
-In FNB Online Banking, open My Bank Accounts, select the relevant account, open Transaction History, then use the download option and select CSV when available. The exact menu labels can differ between profile types.
+## Limits and safeguards
 
-FNB also supports other transaction-history exports, including PDF, QIF, OFC and OFX. Those formats are not enabled by this first preview endpoint.
+- Maximum upload size: 20 MB.
+- Maximum transaction rows: 10,000.
+- Preview response: up to 10 rows.
+- Account suffix: final four digits only.
+- Authentication is required for preview and confirmation.
+- The application never asks for FNB login credentials, PINs or one-time PINs.
+- Statement account suffix is compared with the selected account suffix when both are available.
+- Imported monetary values exceeding 16 whole digits or two decimal places are rejected instead of silently rounded.
 
-## Before persistent import is enabled
+## Validation before relying on the import
 
-Persistent storage of real bank data remains disabled at this stage. Before that feature is added, implement and verify transaction-level ownership checks, duplicate handling, user consent, retention and deletion controls, backup and restore, audit logging, and safe exports. Validate the parser against an actual FNB CSV exported by the account holder before enabling storage.
+Validate the parser against an actual FNB CSV exported by the account holder. Compare dates, descriptions, references, debit/credit signs, service fees and balances with the original export. Do not treat the import as reconciled until the source values have been checked.
