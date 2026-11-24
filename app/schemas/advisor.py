@@ -38,7 +38,6 @@ class AdvisorChatResponse(BaseModel):
 
 
 class TransactionCategorySuggestionRequest(BaseModel):
-    transaction_id: str = Field(pattern=r"^[0-9a-f]{32}$")
     consent_to_share_transaction: bool = False
 
 
