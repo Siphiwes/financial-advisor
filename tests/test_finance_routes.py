@@ -1,8 +1,13 @@
 """Authentication gates for financial data APIs."""
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
+from app.api.dependencies import get_current_user
 from app.main import app
+from app.schemas.auth import AuthenticatedUser
 
 client = TestClient(app)
 
@@ -27,3 +32,24 @@ def test_fnb_import_confirmation_requires_authentication() -> None:
     )
 
     assert response.status_code == 401
+
+
+
+def test_financial_data_gate_returns_503_after_authentication(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("FINANCIAL_DATA_ENABLED", "false")
+    authenticated_user = AuthenticatedUser(
+        id=str(uuid4()),
+        email="owner@example.com",
+        created_at=datetime.now(UTC),
+    )
+    app.dependency_overrides[get_current_user] = lambda: authenticated_user
+
+    try:
+        response = client.get("/api/v1/accounts")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 503
+    assert "disabled" in response.json()["detail"].casefold()
