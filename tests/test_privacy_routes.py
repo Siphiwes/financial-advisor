@@ -109,3 +109,40 @@ def test_privacy_delete_remains_available_when_finance_writes_are_disabled(
     assert response.status_code == 200
     assert response.json()["deleted"] is True
     assert response.json()["account_access_revoked"] is True
+
+
+
+def test_audit_history_requires_authentication() -> None:
+    response = client.get("/api/v1/privacy/audit")
+    assert response.status_code == 401
+
+
+def test_account_deletion_rechecks_password_before_any_record_deletion(
+    monkeypatch,
+) -> None:
+    account_user = _user()
+    monkeypatch.setattr(finance, "_connection", lambda: (object(), "finance-advisor-db"))
+    monkeypatch.setattr(
+        finance,
+        "get_user_by_email",
+        lambda client, database, email: {
+            "_id": "user:email:opaque",
+            "_rev": "revision",
+            "type": "user",
+            "user_id": account_user.id,
+            "password_hash": "stored-password-hash",
+        },
+    )
+    monkeypatch.setattr(finance, "verify_password", lambda password, stored_hash: False)
+    monkeypatch.setattr(
+        finance,
+        "list_user_scoped_documents",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("Deletion must not begin after failed password verification.")
+        ),
+    )
+
+    import pytest
+
+    with pytest.raises(finance.FinanceValidationError, match="current password"):
+        finance.delete_user_data_and_account(account_user, "incorrect-current-password")
