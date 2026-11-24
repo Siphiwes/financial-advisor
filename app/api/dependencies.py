@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.config import get_setting
 from app.core.security import SecurityConfigurationError, decode_access_token
 from app.database.cloudant import get_cloudant_client, get_database_name
 from app.database.users import get_user_by_document_id
@@ -13,7 +14,6 @@ from app.schemas.auth import AuthenticatedUser
 
 logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
-
 
 def get_current_user(
     credentials: Annotated[
@@ -68,8 +68,6 @@ def get_current_user(
         email=user_document["email"],
         created_at=user_document["created_at"],
     )
-
-
 
 def require_financial_data_enabled(
     _current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
