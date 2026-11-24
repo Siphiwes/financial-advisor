@@ -22,7 +22,7 @@ class FNBImportPreview(BaseModel):
     """Metadata and a bounded preview of an uploaded FNB statement."""
 
     bank: Literal["FNB"] = "FNB"
-    source_format: Literal["FNB CSV"] = "FNB CSV"
+    source_format: Literal["FNB CSV", "FNB PDF"] = "FNB CSV"
     statement_date: date | None
     account_last_four: str | None
     opening_balance: Decimal | None

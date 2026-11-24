@@ -157,16 +157,17 @@
       </section>
 
       <section id="imports-view" class="view hidden">
-        <div class="section-heading"><div><h2>FNB statement import</h2><p class="muted">Upload a CSV export from FNB Online Banking.</p></div><span class="status-pill">20 MB maximum</span></div>
+        <div class="section-heading"><div><h2>FNB statement import</h2><p class="muted">Upload your FNB PDF statement. CSV exports are also supported.</p></div><span class="status-pill">20 MB maximum</span></div>
         <div class="notice">The preview reads the selected file in memory and does not save transactions. The original statement file is not stored by this application.</div>
         <form id="import-form" class="panel">
-          <label for="fnb-file">FNB transaction-history CSV</label>
-          <input id="fnb-file" type="file" accept=".csv,text/csv" required>
+          <label for="fnb-file">FNB statement (PDF preferred, CSV also supported)</label>
+          <input id="fnb-file" type="file" accept=".pdf,application/pdf,.csv,text/csv" required>
           <div class="form-actions"><button class="button button-primary" type="submit">Preview statement</button><span id="import-message" class="form-message" role="status"></span></div>
         </form>
         <section id="import-preview" class="panel hidden">
           <div class="panel-heading"><div><h3>Statement preview</h3><p id="import-metadata" class="muted"></p></div><span id="import-count" class="status-pill"></span></div>
           <div id="import-transactions" class="table-wrap"></div>
+          <div id="pdf-preview-notice" class="notice hidden">PDF extraction preview only. The PDF is processed in memory and is not saved. Transaction importing from PDF will be enabled after the extracted layout is verified against your FNB statement.</div>
           <form id="import-confirm-form" class="confirm-import">
             <label for="import-account">Import into account</label><select id="import-account" required><option value="">Select matching FNB account</option></select>
             <label class="checkbox-row"><input id="import-consent" type="checkbox" required> I confirm that this is my statement and authorise its transactions to be saved to my account.</label>
