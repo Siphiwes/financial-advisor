@@ -25,7 +25,7 @@ The preview:
 - parses the statement in memory;
 - returns statement metadata and up to 10 transaction rows;
 - masks the account number to its last four digits;
-- rejects files larger than 5 MB or containing more than 10,000 transaction rows.
+- rejects files larger than 20 MB or containing more than 10,000 transaction rows.
 
 The endpoint does not write the uploaded statement or transaction data to Cloudant. It does not retain the original file. Do not place statement contents, transaction descriptions or account identifiers in logs.
 
