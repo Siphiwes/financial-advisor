@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from redis import Redis
 from redis.exceptions import RedisError
@@ -67,6 +68,15 @@ def enforce_rate_limit(
     redis_url = get_setting("REDIS_URL")
     if not redis_url:
         raise RateLimitUnavailable("The shared rate-limit store is not configured.")
+
+    parsed_redis_url = urlsplit(redis_url)
+    app_environment = (get_setting("APP_ENV", "development") or "development").casefold()
+    if (
+        parsed_redis_url.scheme not in {"redis", "rediss"}
+        or not parsed_redis_url.hostname
+        or (app_environment == "production" and parsed_redis_url.scheme != "rediss")
+    ):
+        raise RateLimitUnavailable("The shared rate-limit store URL is invalid or insecure.")
 
     if limit < 1 or window_seconds < 1:
         raise ValueError("Rate-limit values must be positive.")
