@@ -23,8 +23,8 @@ from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     CategorySummary,
     CurrencySummary,
-    FNBImportCommitResponse,
     FinancialSummaryResponse,
+    FNBImportCommitResponse,
 )
 from app.services.fnb_csv import FNBStatement
 
