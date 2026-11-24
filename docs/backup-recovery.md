@@ -67,3 +67,6 @@ Deletion from the live database does not erase records in older backup snapshots
 - [ ] Approve RPO (maximum acceptable data loss) and RTO (maximum acceptable recovery time).
 
 Until the restore test succeeds, backups are not operationally verified and FINANCIAL_DATA_ENABLED must remain false.
+
+
+AWS_DEFAULT_REGION must also be set for the AWS CLI COS endpoint and signing configuration.
