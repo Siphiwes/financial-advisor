@@ -30,8 +30,8 @@ from app.database.users import get_user_by_email
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     CategorySummary,
-    DebtSummaryResponse,
     CurrencySummary,
+    DebtSummaryResponse,
     FinancialSummaryResponse,
     FNBImportCommitResponse,
 )
@@ -1002,6 +1002,7 @@ def full_financial_context(user: AuthenticatedUser) -> dict:
         "budgets": 1000,
         "goals": 1000,
         "debts": 1000,
+        "imports": 1000,
     }
     data = {}
     for collection, limit in collections.items():
