@@ -4,10 +4,15 @@ import hmac
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_setting
+from app.core.rate_limit import (
+    RateLimitExceeded,
+    RateLimitUnavailable,
+    enforce_rate_limit,
+)
 from app.core.security import (
     SecurityConfigurationError,
     create_access_token,
@@ -52,6 +57,35 @@ def _public_user(user_document: dict) -> UserPublic:
     )
 
 
+def _enforce_auth_limit(action: str, identifier: str, *, limit: int, window: int) -> None:
+    """Convert shared rate-limit outcomes into safe HTTP responses."""
+    try:
+        enforce_rate_limit(
+            action,
+            identifier,
+            limit=limit,
+            window_seconds=window,
+        )
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many authentication attempts. Try again later.",
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+    except RateLimitUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication is temporarily unavailable.",
+        ) from exc
+
+
+def _peer_identifier(request: Request) -> str:
+    """Use the socket peer, not an untrusted client-supplied forwarding header."""
+    if request.client is None:
+        return "unknown-peer"
+    return request.client.host
+
+
 def _cloudant_connection():
     """Return the configured Cloudant client and database for auth operations."""
     try:
@@ -71,12 +105,25 @@ def _cloudant_connection():
 )
 def register(
     payload: RegisterRequest,
+    request: Request,
     invitation_code: Annotated[
         str | None,
         Header(alias="X-Registration-Invite"),
     ] = None,
 ) -> UserPublic:
     """Create an account only when a separately stored invitation code is valid."""
+    _enforce_auth_limit(
+        "register-peer",
+        _peer_identifier(request),
+        limit=10,
+        window=3600,
+    )
+    _enforce_auth_limit(
+        "register-email",
+        str(payload.email),
+        limit=3,
+        window=3600,
+    )
     expected_code = get_setting("REGISTRATION_INVITE_CODE")
     if not expected_code:
         raise HTTPException(
@@ -124,8 +171,20 @@ def register(
     response_model=TokenResponse,
     summary="Exchange account credentials for an access token",
 )
-def issue_token(payload: LoginRequest) -> TokenResponse:
+def issue_token(payload: LoginRequest, request: Request) -> TokenResponse:
     """Authenticate an account and issue a short-lived signed bearer token."""
+    _enforce_auth_limit(
+        "login-peer",
+        _peer_identifier(request),
+        limit=60,
+        window=900,
+    )
+    _enforce_auth_limit(
+        "login-email",
+        str(payload.email),
+        limit=8,
+        window=900,
+    )
     client, database = _cloudant_connection()
     try:
         user_document = get_user_by_email(client, database, str(payload.email))
