@@ -184,7 +184,7 @@ def register(
         public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
         if not public_url.startswith("https://"):
             raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
-        link = f"{public_url}/app?verify_token={token}"
+        link = f"{public_url}/app#verify_token={token}"
         send_account_email(
             recipient=user_document["email"],
             subject="Verify your Financial Advisor email",
@@ -413,7 +413,7 @@ def request_password_reset(payload: PasswordResetRequest) -> AuthenticationActio
             public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
             if not public_url.startswith("https://"):
                 raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
-            link = f"{public_url}/app?reset_token={token}"
+            link = f"{public_url}/app#reset_token={token}"
             send_account_email(recipient=user["email"], subject="Reset your Financial Advisor password", text_body=f"Reset your password within 30 minutes: {link}", html_body=f'<p>Reset your password using the link below. It expires in 30 minutes.</p><p><a href="{link}">Reset password</a></p><p>If you did not request this, ignore this message.</p>')  # noqa: E501
     except (EmailConfigurationError, EmailDeliveryError) as exc:
         logger.warning("Password reset email unavailable: %s", type(exc).__name__)
