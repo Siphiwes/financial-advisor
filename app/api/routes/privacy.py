@@ -1,0 +1,50 @@
+"""User-controlled export and deletion of personal financial data."""
+
+import logging
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.api.dependencies import get_current_user
+from app.schemas.auth import AuthenticatedUser
+from app.schemas.privacy import PrivacyDeleteResponse, PrivacyExportResponse
+from app.services import finance
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/v1/privacy", tags=["privacy"])
+CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+
+
+@router.get("/export", response_model=PrivacyExportResponse)
+def export_my_data(current_user: CurrentUser) -> dict:
+    """Export the user's application records, even while finance writes are gated."""
+    try:
+        return finance.export_user_data(current_user)
+    except finance.FinanceValidationError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning("User data export failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="The account data export could not be completed.",
+        ) from exc
+
+
+@router.delete("/data", response_model=PrivacyDeleteResponse)
+def delete_my_data(current_user: CurrentUser) -> dict:
+    """Delete user-owned finance documents and revoke the login account."""
+    try:
+        return finance.delete_user_data_and_account(current_user)
+    except finance.FinanceValidationError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except finance.FinanceRecordNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning("User data deletion failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "The deletion could not be completed. The account remains available "
+                "so you can retry. Contact support if the problem continues."
+            ),
+        ) from exc
