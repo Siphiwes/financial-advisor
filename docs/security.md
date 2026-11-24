@@ -76,3 +76,13 @@ Keep FINANCIAL_DATA_ENABLED=false for general use until the remaining safeguards
 ## Deployment
 
 Run the container as a non-root user. Restrict CORS to known frontend origins when a browser frontend is introduced. Keep diagnostics disabled when the temporary diagnostics token is not configured.
+
+
+## Additional release-readiness controls in the current branch
+
+- Sensitive finance reads, FNB preview/history access, user export and explicit AI data-sharing requests now write minimal user-scoped audit events before returning data.
+- If one of these required audit writes fails, the request fails closed with HTTP 503. Audit metadata excludes transaction descriptions, amounts, references and statement contents.
+- The audit trail remains user-scoped and is removed by the current account deletion workflow. It is not an immutable compliance archive and does not yet cover every administrative or authentication event.
+- Encrypted Cloudant backup and restore scripts are provided under scripts/. They require a separate protected runner, COS HMAC credentials and age encryption keys. The scripts do not run in the application container.
+- Backup and restore scripts must be syntax-checked and a recovery test completed before financial-data writes are enabled.
+- No automated retention deletion or backup lifecycle expiry is enabled until the data controller approves the retention policy.
