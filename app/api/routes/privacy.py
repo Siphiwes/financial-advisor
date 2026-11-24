@@ -19,6 +19,18 @@ router = APIRouter(prefix="/api/v1/privacy", tags=["privacy"])
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
 
 
+@router.get("/audit")
+def read_my_audit_events(
+    current_user: CurrentUser,
+    limit: int = 100,
+) -> list[dict]:
+    """Return a limited list of this account's data-access and change events."""
+    try:
+        return finance.list_audit_events(current_user, limit=limit)
+    except finance.FinanceValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.get("/export", response_model=PrivacyExportResponse)
 def export_my_data(current_user: CurrentUser) -> dict:
     """Export the user's application records, even while finance writes are gated."""
