@@ -163,8 +163,18 @@ def update_financial_account(user: AuthenticatedUser, account_id: str, changes: 
     data.update({key: value for key, value in changes.items() if value is not None})
     return _record_view(_update_record(user.id, "accounts", account_id, data))
 
+def _validated_category(user: AuthenticatedUser, category: str | None) -> str | None:
+    if category is None:
+        return None
+    for item in list_categories(user):
+        if item["name"].casefold() == category.strip().casefold():
+            return item["name"]
+    raise FinanceValidationError("Select an existing category or create a new one.")
+
+
 def create_manual_transaction(user: AuthenticatedUser, payload) -> dict:
     account = get_financial_account(user.id, payload.account_id)
+    category = _validated_category(user, payload.category)
     transaction_date = payload.transaction_date.isoformat()
     amount = _decimal_text(payload.amount)
     service_fee = _decimal_text(payload.service_fee)
@@ -178,7 +188,7 @@ def create_manual_transaction(user: AuthenticatedUser, payload) -> dict:
         "currency": account["currency"],
         "service_fee": service_fee,
         "balance_after": balance_after,
-        "category": payload.category,
+        "category": category,
         "notes": payload.notes,
         "source": "manual",
         "import_id": None,
@@ -256,6 +266,8 @@ def update_transaction(user: AuthenticatedUser, transaction_id: str, changes: di
     for key, value in changes.items():
         if value is None and key not in {"reference", "category", "notes"}:
             continue
+        if key == "category" and value is not None:
+            value = _validated_category(user, value)
         if key == "transaction_date":
             value = value.isoformat()
         elif key == "amount":
@@ -287,9 +299,10 @@ def delete_transaction(user: AuthenticatedUser, transaction_id: str) -> dict:
     return _record_view(_update_record(user.id, "transactions", transaction_id, data))
 
 def create_budget(user: AuthenticatedUser, payload) -> dict:
+    category = _validated_category(user, payload.category)
     data = {
         "name": payload.name.strip(),
-        "category": payload.category.strip(),
+        "category": category,
         "amount": _decimal_text(payload.amount),
         "currency": payload.currency,
         "period": payload.period,
@@ -309,6 +322,8 @@ def update_budget(user: AuthenticatedUser, budget_id: str, changes: dict) -> dic
     for key, value in changes.items():
         if value is None:
             continue
+        if key == "category":
+            value = _validated_category(user, value)
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
         )
@@ -356,6 +371,7 @@ def financial_summary(
         lambda: {
             "income": Decimal("0"),
             "expenses": Decimal("0"),
+            "transfers": Decimal("0"),
             "count": 0,
         }
     )
@@ -376,7 +392,9 @@ def financial_summary(
         currency = item["currency"]
         totals = currency_totals[currency]
         totals["count"] += 1
-        if amount >= 0:
+        if (item.get("category") or "").casefold() == "transfers":
+            totals["transfers"] += abs(amount)
+        elif amount >= 0:
             totals["income"] += amount
         else:
             totals["expenses"] += abs(amount)
@@ -391,6 +409,7 @@ def financial_summary(
             income=values["income"],
             expenses=values["expenses"],
             net_cash_flow=values["income"] - values["expenses"],
+            transfers=values["transfers"],
             transaction_count=values["count"],
         )
         for currency, values in sorted(currency_totals.items())
@@ -668,6 +687,13 @@ def update_category(user: AuthenticatedUser, category_id: str, changes: dict) ->
     data = dict(document["data"])
     if data.get("is_system"):
         raise FinanceValidationError("Built-in categories cannot be changed.")
+    new_name = changes.get("name")
+    if new_name and any(
+        item["id"] != category_id
+        and item["name"].casefold() == new_name.strip().casefold()
+        for item in list_categories(user)
+    ):
+        raise FinanceValidationError("A category with this name already exists.")
     for key, value in changes.items():
         if value is not None:
             data[key] = value
@@ -814,7 +840,7 @@ def recurring_payment_candidates(user: AuthenticatedUser) -> list[dict]:
         if transaction.get("is_deleted"):
             continue
         amount = Decimal(str(transaction["amount"]))
-        if amount >= 0:
+        if amount >= 0 or (transaction.get("category") or "").casefold() == "transfers":
             continue
         description = re.sub(
             r"\d+",
