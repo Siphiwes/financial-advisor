@@ -18,9 +18,11 @@ from app.core.security import verify_password
 from app.database.cloudant import get_cloudant_client, get_database_name
 from app.database.scoped import (
     UserScopedDocumentNotFoundError,
+    bulk_create_user_scoped_documents,
     create_user_scoped_document,
     delete_user_scoped_document,
     get_user_scoped_document,
+    get_user_scoped_documents_by_ids,
     list_user_scoped_documents,
     update_user_scoped_document,
 )
@@ -570,6 +572,7 @@ def commit_fnb_import(
     duplicate_count = 0
     transaction_occurrences: dict[str, int] = defaultdict(int)
     try:
+        records: list[tuple[str, dict]] = []
         for transaction in statement.transactions:
             base_record_id = _fnb_transaction_record_id(account_id, transaction)
             occurrence = transaction_occurrences[base_record_id]
@@ -581,15 +584,6 @@ def commit_fnb_import(
                     f"{base_record_id}:{occurrence}".encode()
                 ).hexdigest()[:32]
             )
-            existing = get_user_scoped_document(
-                client, database, user.id, "transactions", record_id
-            )
-            if existing:
-                if existing["data"].get("import_id") == batch_id:
-                    imported_count += 1
-                else:
-                    duplicate_count += 1
-                continue
 
             transaction_date = transaction.effective_date.isoformat()
             amount = _decimal_text(transaction.amount)
@@ -619,33 +613,35 @@ def commit_fnb_import(
                 "corrections": [],
                 "is_deleted": False,
             }
-            try:
-                create_user_scoped_document(
-                    client,
-                    database,
-                    user.id,
-                    "transactions",
-                    transaction_data,
-                    record_id=record_id,
-                )
+            records.append((record_id, transaction_data))
+
+        existing_documents = get_user_scoped_documents_by_ids(
+            client,
+            database,
+            user.id,
+            "transactions",
+            [record_id for record_id, _ in records],
+        )
+        records_to_create: list[tuple[str, dict]] = []
+        for record_id, transaction_data in records:
+            existing = existing_documents.get(record_id)
+            if existing is None:
+                records_to_create.append((record_id, transaction_data))
+            elif existing["data"].get("import_id") == batch_id:
                 imported_count += 1
-            except Exception as exc:
-                if not _is_conflict_error(exc):
-                    raise
+            else:
                 duplicate_count += 1
 
-        batch_data = dict(batch_document["data"])
-        batch_data.update(
-            {
-                "status": "completed",
-                "imported_count": imported_count,
-                "duplicate_count": duplicate_count,
-                "completed_at": _now(),
-            }
+        bulk_result = bulk_create_user_scoped_documents(
+            client,
+            database,
+            user.id,
+            "transactions",
+            records_to_create,
         )
-        update_user_scoped_document(
-            client, database, user.id, "imports", batch_id, batch_data
-        )
+        imported_count += bulk_result["created"]
+        duplicate_count += bulk_result["conflicts"]
+
     except Exception:
         batch_data = dict(batch_document["data"])
         batch_data.update(
