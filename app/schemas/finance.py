@@ -279,7 +279,6 @@ class DebtUpdate(BaseModel):
     interest_rate: Decimal | None = Field(default=None, ge=0, le=100, max_digits=6, decimal_places=3)
     due_date: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
-    status: DebtStatus | None = None
 
 
 class DebtResponse(BaseModel):
