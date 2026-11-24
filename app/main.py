@@ -1,6 +1,11 @@
 """FastAPI application factory and current API endpoints."""
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
+
+# Loads a local .env file when present. Code Engine supplies deployed values
+# through environment variables and does not need a .env file in the image.
+load_dotenv()
 
 
 def create_app() -> FastAPI:
