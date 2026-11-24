@@ -56,7 +56,7 @@ Run the container as a non-root user. Keep dependencies reviewed and updated. Re
 
 - FNB CSV uploads are accepted only by an authenticated preview endpoint.
 - The uploaded file is parsed in memory and is not written to Cloudant.
-- The API limits CSV uploads to 5 MB and transaction rows to 10,000.
+- The API limits CSV uploads to 20 MB and transaction rows to 10,000.
 - Account numbers are reduced to their last four digits in preview metadata.
 - The preview returns at most 10 transaction rows.
 - Do not log uploaded file contents, transaction descriptions, references or account identifiers.
