@@ -516,21 +516,25 @@
           await loadFinanceData();
         } catch (error) { globalMessage(error.message, true); }
       });
-      const edit = el("button", "Edit repayment", "button button-secondary");
+      const edit = el("button", "Edit details", "button button-secondary");
       edit.type = "button";
       edit.addEventListener("click", async () => {
+        const creditor = window.prompt("Creditor / lender", debt.creditor);
+        if (creditor === null) return;
+        const name = window.prompt("Debt name", debt.debt_name);
+        if (name === null) return;
         const payment = window.prompt("Monthly repayment", String(debt.monthly_payment));
         if (payment === null) return;
         const rate = window.prompt("Annual interest rate (%)", debt.interest_rate === null ? "" : String(debt.interest_rate));
         if (rate === null) return;
         const amount = Number(payment);
         const interest = rate.trim() ? Number(rate) : null;
-        if (!Number.isFinite(amount) || amount < 0 || (interest !== null && (!Number.isFinite(interest) || interest < 0 || interest > 100))) {
-          globalMessage("Enter valid repayment and interest values.", true);
+        if (!creditor.trim() || !name.trim() || !Number.isFinite(amount) || amount < 0 || (interest !== null && (!Number.isFinite(interest) || interest < 0 || interest > 100))) {
+          globalMessage("Enter valid creditor, debt name, repayment and interest values.", true);
           return;
         }
         try {
-          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({monthly_payment:amount.toFixed(2),interest_rate:interest===null?null:interest.toFixed(3)})});
+          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({creditor:creditor.trim(),debt_name:name.trim(),monthly_payment:amount.toFixed(2),interest_rate:interest===null?null:interest.toFixed(3)})});
           await loadFinanceData();
         } catch (error) { globalMessage(error.message, true); }
       });
