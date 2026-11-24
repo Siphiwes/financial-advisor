@@ -62,6 +62,7 @@
         <button type="button" class="tab" data-view="budgets-view">Budgets</button>
         <button type="button" class="tab" data-view="goals-view">Goals</button>
         <button type="button" class="tab" data-view="categories-view">Categories</button>
+        <button type="button" class="tab" data-view="privacy-view">Privacy & data</button>
       </nav>
 
       <section id="dashboard-view" class="view">
@@ -198,7 +199,25 @@
         </form>
         <div id="category-list" class="record-list"></div>
       </section>
-      <footer class="footer">Financial calculations are based on recorded bank data. AI explanations are not enabled until the IBM watsonx.ai integration is complete.</footer>
+
+      <section id="privacy-view" class="view hidden">
+        <div class="section-heading"><div><h2>Your data and privacy</h2><p class="muted">Retrieve a copy of your records or permanently delete your account and associated financial data.</p></div></div>
+        <article class="panel privacy-card">
+          <h3>Download your data</h3>
+          <p class="muted">Export includes your account metadata, transactions, categories, budgets, goals and import history. Original bank statement files aren't retained by this application and won't be included.</p>
+          <button id="export-data-button" class="button button-secondary" type="button">Download my data</button>
+          <p id="export-message" class="form-message" role="status"></p>
+        </article>
+        <article class="panel privacy-danger">
+          <h3>Delete your account and data</h3>
+          <p>This permanently deletes your Cloudant login record and your financial accounts, transactions, budgets, goals, categories and import history. You won't be able to sign in again with this account.</p>
+          <label for="delete-confirmation">Type DELETE to confirm</label>
+          <input id="delete-confirmation" autocomplete="off" maxlength="6" placeholder="DELETE">
+          <button id="delete-account-button" class="button button-danger" type="button" disabled>Delete account permanently</button>
+          <p id="delete-message" class="form-message" role="status"></p>
+        </article>
+      </section>
+      <footer class="footer">Financial calculations are based on recorded bank data. AI explanations are generated from aggregate figures and aren't a substitute for professional financial advice.</footer>
     </section>
   </main>
 </body>
