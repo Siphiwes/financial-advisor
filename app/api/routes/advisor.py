@@ -41,7 +41,7 @@ async def chat_with_advisor(
     current_user: CurrentUser,
 ) -> AdvisorChatResponse:
     """Send a question and a bounded aggregate summary to IBM watsonx.ai."""
-    if payload.consent_to_share_summary is not True:
+    if payload.consent_to_share_all_financial_records is not True:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
@@ -52,11 +52,13 @@ async def chat_with_advisor(
 
     finance.record_sensitive_access(current_user, "ai_summary_request", "advisor")
     try:
-        summary = finance.financial_summary(
-            current_user,
-            from_date=payload.from_date,
-            to_date=payload.to_date,
-        )
+        summary = finance.full_financial_context(current_user)
+        if payload.from_date or payload.to_date:
+            summary["financial_summary"] = finance.financial_summary(
+                current_user,
+                from_date=payload.from_date,
+                to_date=payload.to_date,
+            ).model_dump(mode="json")
     except finance.FinanceValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -83,9 +85,10 @@ async def chat_with_advisor(
         answer=answer,
         data_shared=[
             "Your question",
-            "Aggregated income, expenses, transfers and net cash flow by currency",
-            "Aggregated expenses by category",
-            "The selected date range",
+            "All saved account records, including account identifiers and stored account numbers",
+            "All saved transactions, including descriptions, references, amounts, dates, account IDs and original import fields",
+            "All saved categories, budgets, goals and debt records",
+            "Calculated income, expense, cash-flow and debt summaries",
         ],
     )
 
@@ -126,12 +129,15 @@ async def suggest_transaction_category(
     if not allowed_categories:
         raise HTTPException(status_code=422, detail="No active categories are available.")
 
-    approved_transaction = {
-        "transaction_date": transaction["transaction_date"],
-        "description": transaction["description"],
-        "amount": transaction["amount"],
-        "currency": transaction["currency"],
-    }
+    approved_transaction = dict(transaction)
+    try:
+        approved_transaction["account"] = finance.get_financial_account(
+            current_user.id,
+            transaction["account_id"],
+            active=False,
+        )
+    except finance.FinanceRecordNotFoundError:
+        approved_transaction["account"] = None
     question = (
         "Choose the single best category for this transaction from the allowed "
         "categories in the supplied data. Return only a JSON object with two keys: "
@@ -182,9 +188,8 @@ async def suggest_transaction_category(
         explanation=explanation.strip()[:500],
         applied=False,
         data_shared=[
-            "Selected transaction date",
-            "Selected transaction description",
-            "Selected transaction amount and currency",
+            "All stored fields for the selected transaction, including description, reference and account identifier",
+            "The associated stored account record, including its account identifier",
             "Available category names and types",
         ],
     )
