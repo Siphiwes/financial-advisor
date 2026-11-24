@@ -6,6 +6,7 @@ stored as decimal strings to avoid binary floating-point conversion.
 
 import hashlib
 import json
+import logging
 import re
 from calendar import monthrange
 from collections import defaultdict
@@ -33,6 +34,8 @@ from app.schemas.finance import (
 )
 from app.services.fnb_csv import FNBStatement
 
+logger = logging.getLogger(__name__)
+
 
 class FinanceRecordNotFoundError(LookupError):
     """Raised when a financial record is absent or belongs to another user."""
@@ -44,6 +47,46 @@ class FinanceValidationError(ValueError):
 
 def _connection():
     return get_cloudant_client(), get_database_name()
+
+
+
+def _write_audit_event(
+    user_id: str,
+    action: str,
+    resource_type: str,
+    resource_id: str,
+    *,
+    metadata: dict | None = None,
+) -> None:
+    """Write a minimal user-scoped audit event without financial payloads."""
+    try:
+        client, database = _connection()
+        event = {
+            "action": action,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "occurred_at": _now(),
+            "metadata": metadata or {},
+        }
+        create_user_scoped_document(
+            client,
+            database,
+            user_id,
+            "audit",
+            event,
+        )
+    except Exception as exc:
+        # Keep sensitive data out of logs. Audit-storage failures must be monitored.
+        logger.warning("Finance audit event write failed: %s", type(exc).__name__)
+
+
+def list_audit_events(user: AuthenticatedUser, *, limit: int = 100) -> list[dict]:
+    """Return the authenticated user's most recent non-content audit events."""
+    if not 1 <= limit <= 500:
+        raise FinanceValidationError("The requested audit page size is not supported.")
+    records, _ = _list_records(user.id, "audit", limit=limit)
+    records.sort(key=lambda item: item.get("occurred_at", ""), reverse=True)
+    return records
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
@@ -89,6 +132,8 @@ def _create_record(
         data,
         record_id=record_id,
     )
+    if collection != "audit":
+        _write_audit_event(user_id, "create", collection, saved_id)
     return _read_record(user_id, collection, saved_id)
 
 def _update_record(user_id: str, collection: str, record_id: str, data: dict) -> dict:
@@ -101,6 +146,8 @@ def _update_record(user_id: str, collection: str, record_id: str, data: dict) ->
         raise FinanceRecordNotFoundError(
             "The requested record was not found."
         ) from exc
+    if collection != "audit":
+        _write_audit_event(user_id, "update", collection, record_id)
     return _read_record(user_id, collection, record_id)
 
 def _list_records(
@@ -613,6 +660,17 @@ def commit_fnb_import(
             pass
         raise
 
+    _write_audit_event(
+        user.id,
+        "import",
+        "imports",
+        batch_id,
+        metadata={
+            "transaction_count": len(statement.transactions),
+            "imported_count": imported_count,
+            "duplicate_count": duplicate_count,
+        },
+    )
     return FNBImportCommitResponse(
         import_id=batch_id,
         status="completed",
