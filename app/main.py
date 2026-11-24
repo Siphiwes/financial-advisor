@@ -3,6 +3,7 @@
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from app.api.routes.auth import router as auth_router
 from app.api.routes.diagnostics import router as diagnostics_router
 
 # Loads a local .env file when present. Code Engine supplies deployed values
@@ -18,6 +19,7 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(diagnostics_router)
+    application.include_router(auth_router)
 
     @application.get("/", tags=["system"])
     def read_root() -> dict[str, str]:
