@@ -15,13 +15,13 @@ from app.schemas.auth import AuthenticatedUser
 logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
 
-def get_current_user(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None,
-        Depends(bearer_scheme),
-    ],
+
+def _load_authenticated_user(
+    credentials: HTTPAuthorizationCredentials | None,
+    *,
+    allow_deletion_in_progress: bool = False,
 ) -> AuthenticatedUser:
-    """Validate the bearer token and load the active user from Cloudant."""
+    """Validate a bearer token and resolve its active Cloudant user document."""
     unauthorized = HTTPException(
         status_code=401,
         detail="Authentication is required.",
@@ -63,11 +63,38 @@ def get_current_user(
     ):
         raise unauthorized
 
+    if user_document.get("is_deleting") is True and not allow_deletion_in_progress:
+        raise HTTPException(
+            status_code=423,
+            detail="Account deletion is in progress. Retry the deletion request to continue.",
+        )
+
     return AuthenticatedUser(
         id=user_document["user_id"],
         email=user_document["email"],
         created_at=user_document["created_at"],
     )
+
+
+def get_current_user(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+) -> AuthenticatedUser:
+    """Validate the bearer token and reject accounts currently being deleted."""
+    return _load_authenticated_user(credentials)
+
+
+def get_user_for_deletion(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+) -> AuthenticatedUser:
+    """Allow only the deletion workflow to resume an account already being deleted."""
+    return _load_authenticated_user(credentials, allow_deletion_in_progress=True)
+
 
 def require_financial_data_enabled(
     _current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -79,7 +106,6 @@ def require_financial_data_enabled(
             status_code=503,
             detail="Financial data storage is disabled until release safeguards are completed.",
         )
-
 
 
 def require_financial_ai_enabled(
