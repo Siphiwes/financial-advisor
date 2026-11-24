@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 AccountType = Literal["cheque", "savings", "credit_card", "investment", "loan", "other"]
@@ -204,3 +204,40 @@ class FNBImportCommitResponse(BaseModel):
     statement_date: date | None
     account_last_four: str
     message: str
+
+
+CategoryKind = Literal["income", "expense", "transfer"]
+
+
+class CategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    kind: CategoryKind
+
+
+class CategoryUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    kind: CategoryKind | None = None
+    is_active: bool | None = None
+
+
+class CategoryResponse(BaseModel):
+    id: str
+    name: str
+    kind: CategoryKind
+    is_system: bool
+    is_active: bool
+    created_at: datetime | None
+    updated_at: datetime | None
+
+
+class ImportRecordResponse(BaseModel):
+    id: str
+    source: str
+    account_id: str
+    status: Literal["processing", "partial", "completed"]
+    transaction_count: int
+    imported_count: int
+    duplicate_count: int
+    statement_date: date | None
+    created_at: datetime
+    updated_at: datetime
