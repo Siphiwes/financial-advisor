@@ -23,11 +23,11 @@ from app.schemas.finance import (
     GoalCreate,
     GoalResponse,
     GoalUpdate,
+    RecurringPaymentCandidate,
     TransactionCreate,
     TransactionListResponse,
     TransactionResponse,
     TransactionUpdate,
-    RecurringPaymentCandidate,
 )
 from app.services import finance
 
@@ -58,7 +58,10 @@ def read_accounts(current_user: CurrentUser) -> list[dict]:
     status_code=status.HTTP_201_CREATED,
 )
 def add_account(payload: FinancialAccountCreate, current_user: CurrentUser) -> dict:
-    return finance.create_financial_account(current_user, payload)
+    try:
+        return finance.create_financial_account(current_user, payload)
+    except finance.FinanceValidationError as exc:
+        raise _invalid(exc) from exc
 
 
 @router.get("/accounts/{account_id}", response_model=FinancialAccountResponse)
