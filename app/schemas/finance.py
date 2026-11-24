@@ -218,3 +218,31 @@ class ImportRecordResponse(BaseModel):
     statement_date: date | None
     created_at: datetime
     updated_at: datetime
+
+
+
+class BudgetProgressResponse(BudgetResponse):
+    period_start: date
+    period_end: date
+    spent: Decimal
+    remaining: Decimal
+    percent_used: Decimal
+
+
+class GoalContributionCreate(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
+    transaction_date: date
+    direction: Literal["contribution", "withdrawal"] = "contribution"
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class RecurringPaymentCandidate(BaseModel):
+    account_id: str
+    description: str
+    average_amount: Decimal
+    currency: str
+    occurrence_count: int
+    first_seen: date
+    last_seen: date
+    frequency: Literal["weekly", "monthly", "irregular"]
+    confidence: Literal["low", "medium"]
