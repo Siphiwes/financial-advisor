@@ -50,3 +50,14 @@
 ## Deployment
 
 Run the container as a non-root user. Keep dependencies reviewed and updated. Restrict CORS to known frontend origins when a browser frontend is introduced.
+
+
+## FNB statement preview
+
+- FNB CSV uploads are accepted only by an authenticated preview endpoint.
+- The uploaded file is parsed in memory and is not written to Cloudant.
+- The API limits CSV uploads to 5 MB and transaction rows to 10,000.
+- Account numbers are reduced to their last four digits in preview metadata.
+- The preview returns at most 10 transaction rows.
+- Do not log uploaded file contents, transaction descriptions, references or account identifiers.
+- Persistent statement and transaction imports remain disabled until consent, deduplication, ownership enforcement, retention, deletion, backup and restore, and audit controls are implemented and verified.
