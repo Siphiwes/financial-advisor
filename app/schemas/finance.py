@@ -163,6 +163,7 @@ class CurrencySummary(BaseModel):
     income: Decimal
     expenses: Decimal
     net_cash_flow: Decimal
+    transfers: Decimal
     transaction_count: int
 
 class CategorySummary(BaseModel):
