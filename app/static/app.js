@@ -472,6 +472,9 @@
 
   function renderImportPreview(preview) {
     state.importPreview = preview;
+    const isPdfPreview = preview.source_format === "FNB PDF";
+    $("pdf-preview-notice").classList.toggle("hidden", !isPdfPreview);
+    $("import-confirm-form").classList.toggle("hidden", isPdfPreview);
     $("import-preview").classList.remove("hidden");
     $("import-metadata").textContent = [
       preview.statement_date ? "Statement date: " + preview.statement_date : "Statement date not supplied",
@@ -757,14 +760,16 @@
     if (file.size > 20 * 1024 * 1024) {
       message("import-message", "The file exceeds the 20 MB limit.", "error"); return;
     }
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      message("import-message", "Select an FNB CSV file.", "error"); return;
+    const extension = file.name.toLowerCase().split(".").pop();
+    if (!["pdf", "csv"].includes(extension)) {
+      message("import-message", "Select an FNB PDF or CSV statement.", "error"); return;
     }
     state.selectedFile = file;
     const form = new FormData(); form.append("file", file);
     message("import-message", "Reading statement...");
     try {
-      const preview = await api("/imports/fnb/csv/preview", { method: "POST", body: form });
+      const previewPath = extension === "pdf" ? "/imports/fnb/pdf/preview" : "/imports/fnb/csv/preview";
+      const preview = await api(previewPath, { method: "POST", body: form });
       renderImportPreview(preview);
       message("import-message", "Preview ready. No transactions have been saved.", "success");
     } catch (error) {
@@ -774,7 +779,7 @@
 
   $("import-confirm-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.selectedFile || !state.importPreview) return;
+    if (!state.selectedFile || !state.importPreview || state.importPreview.source_format === "FNB PDF") return;
     if (!$("import-consent").checked) {
       message("confirm-import-message", "Explicit confirmation is required.", "error"); return;
     }
