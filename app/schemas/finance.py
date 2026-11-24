@@ -286,7 +286,9 @@ class DebtUpdate(BaseModel):
     debt_type: DebtType | None = None
     current_balance: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
     monthly_payment: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
-    interest_rate: Decimal | None = Field(default=None, ge=0, le=100, max_digits=6, decimal_places=3)
+    interest_rate: Decimal | None = Field(
+        default=None, ge=0, le=100, max_digits=6, decimal_places=3
+    )
     due_date: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
 
