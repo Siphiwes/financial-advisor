@@ -97,6 +97,22 @@ def list_audit_events(user: AuthenticatedUser, *, limit: int = 100) -> list[dict
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
+def _validated_fnb_money(value: Decimal | None) -> Decimal | None:
+    """Normalize imported money and reject values outside the API's exact precision."""
+    if value is None:
+        return None
+    normalized = value.normalize()
+    exponent = normalized.as_tuple().exponent
+    decimal_places = max(-exponent, 0)
+    whole_digits = max(len(normalized.as_tuple().digits) + exponent, 0)
+    if decimal_places > 2 or max(whole_digits, 1) + decimal_places > 18:
+        raise FinanceValidationError(
+            "The FNB statement contains a monetary value outside the supported "
+            "18-digit, two-decimal precision."
+        )
+    return normalized
+
+
 def _decimal_text(value: Decimal | None) -> str | None:
     return format(value, "f") if value is not None else None
 
@@ -586,9 +602,9 @@ def commit_fnb_import(
             )
 
             transaction_date = transaction.effective_date.isoformat()
-            amount = _decimal_text(transaction.amount)
-            service_fee = _decimal_text(transaction.service_fee)
-            balance_after = _decimal_text(transaction.balance)
+            amount = _decimal_text(_validated_fnb_money(transaction.amount))
+            service_fee = _decimal_text(_validated_fnb_money(transaction.service_fee))
+            balance_after = _decimal_text(_validated_fnb_money(transaction.balance))
             transaction_data = {
                 "account_id": account_id,
                 "transaction_date": transaction_date,
