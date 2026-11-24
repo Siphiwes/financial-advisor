@@ -4,18 +4,20 @@
 
 - Confirm the Code Engine revision is Ready after deployment.
 - Check application logs for startup errors. Never log credentials, transaction descriptions, account identifiers or financial document contents.
-- Smoke-test /, /health and /docs.
+- Smoke-test /, /health, /app, /docs and static frontend assets.
 - Test authentication and verify that protected endpoints reject unauthenticated requests.
 - Keep FINANCIAL_DATA_ENABLED=false until the release checklist is complete.
+- Keep FINANCIAL_AI_ENABLED=false until the IBM project/model and data-sharing review are complete.
 - Review IBM Cloud service usage, quotas and costs.
 
 ## Before enabling financial data
 
-- Complete retention, correction, user export and deletion workflows.
+- Verify transaction correction, user export and password-confirmed account deletion, including the documented 10,000-record-per-collection bound.
+- Define retention periods and deletion handling for primary data and backups.
 - Configure automated Cloudant backups and test a restoration into a controlled recovery environment.
-- Record security audit events without logging financial payloads.
+- Expand audit events to cover sensitive reads, exports, account deletion and administrative actions. Alert when audit writes fail.
 - Set request size, rate and timeout limits at the application and edge layers.
-- Establish monitoring and alerts for authentication failures, import errors, Cloudant failures and application availability.
+- Establish monitoring and alerts for authentication failures, import errors, Cloudant failures, audit-write failures and application availability.
 - Define credential rotation, incident response and user notification processes.
 - Review privacy, consent and applicable South African legal requirements, including cross-border processing.
 
@@ -25,6 +27,7 @@
 - Check import status and duplicate counts.
 - Do not store original bank files unless a separate retention and deletion design is approved.
 - Investigate partial imports before retrying. Deterministic transaction IDs are intended to make retries safe.
+- Validate the parser against an actual FNB export supplied by the account holder before treating import results as reconciled.
 - Keep raw statement contents out of tickets, source control and logs.
 
 ## Deployment
@@ -32,5 +35,5 @@
 - Build from the reviewed main commit.
 - Verify the image digest and Code Engine revision.
 - Confirm environment variables and secret references without printing secret values.
-- Verify readiness, health and API documentation.
+- Verify readiness, health, web workspace, API docs and static asset delivery.
 - Test account isolation and feature-gate behaviour after every release.
