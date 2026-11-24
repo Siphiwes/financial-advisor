@@ -627,6 +627,21 @@
     }
   });
 
+  $("resend-verification-button").addEventListener("click", async () => {
+    const email = window.prompt("Enter the email address for your account:", $("email").value.trim());
+    if (!email) return;
+    message("login-message", "Requesting a verification email...");
+    try {
+      const result = await api("/auth/email/resend", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      message("login-message", result.message, "success");
+    } catch (error) {
+      message("login-message", error.message, "error");
+    }
+  });
+
   $("forgot-password-button").addEventListener("click", async () => {
     const email = window.prompt("Enter the email address for your account:", $("email").value.trim());
     if (!email) return;
