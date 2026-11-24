@@ -1,8 +1,13 @@
 """Authentication checks for statement-import preview."""
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
+from app.api.dependencies import get_current_user
 from app.main import app
+from app.schemas.auth import AuthenticatedUser
 
 client = TestClient(app)
 
@@ -31,12 +36,6 @@ def test_fnb_confirmation_requires_authentication() -> None:
 
 
 def test_fnb_confirmation_stays_disabled_by_default(monkeypatch) -> None:
-    from datetime import UTC, datetime
-    from uuid import uuid4
-
-    from app.api.dependencies import get_current_user
-    from app.schemas.auth import AuthenticatedUser
-
     monkeypatch.setenv("FINANCIAL_DATA_ENABLED", "false")
     app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
         id=str(uuid4()),
