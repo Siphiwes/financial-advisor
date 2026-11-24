@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 077
-for name in CLOUDANT_URL CLOUDANT_API_KEY AGE_IDENTITY_FILE COS_BUCKET COS_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY BACKUP_OBJECT RESTORE_DATABASE; do
+for name in CLOUDANT_URL CLOUDANT_API_KEY CLOUDANT_DATABASE AGE_IDENTITY_FILE COS_BUCKET COS_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY BACKUP_OBJECT RESTORE_DATABASE; do
   if [[ -z "$(printenv "$name" || true)" ]]; then
     printf 'Required environment variable is missing: %s\n' "$name" >&2
     exit 2
@@ -12,7 +12,7 @@ for command_name in couchrestore age aws gzip sha256sum; do
 done
 [[ -f "$AGE_IDENTITY_FILE" ]] || { printf 'AGE_IDENTITY_FILE is not readable.\n' >&2; exit 2; }
 [[ "$RESTORE_DATABASE" =~ ^[a-z][a-z0-9_$()+/-]*$ ]] || { printf 'Invalid restore database name.\n' >&2; exit 2; }
-if [[ "$RESTORE_DATABASE" == "finance-advisor-db" ]]; then
+if [[ "$RESTORE_DATABASE" == "$CLOUDANT_DATABASE" ]]; then
   printf 'Restore target must not be the production database.\n' >&2
   exit 2
 fi
