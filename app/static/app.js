@@ -658,7 +658,7 @@
   });
 
   async function processAccountLink() {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.hash.slice(1));
     const verifyToken = params.get("verify_token");
     const resetToken = params.get("reset_token");
     if (!verifyToken && !resetToken) return;
