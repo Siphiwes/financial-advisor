@@ -30,7 +30,7 @@ Only import metadata and a file hash are retained. The original uploaded CSV is 
 
 Authenticated user question + explicit one-request consent -> deterministic user-specific financial summary -> IBM watsonx.ai chat API -> response.
 
-The connector sends aggregate figures (income, expenses, transfers, cash flow and expense categories), the selected date range and the user's question. It does not send raw transaction descriptions, references, account IDs or source files. The request and response are not persisted by the current endpoint.
+The financial chat sends aggregate figures (income, expenses, transfers, cash flow and expense categories), the selected date range and the user's question. The category-suggestion flow sends one explicitly selected transaction's date, description, amount and currency plus the allowed category names/types. Neither flow sends account IDs, references or source files. Prompts and responses are not persisted by the current endpoints.
 
 The AI integration is separately disabled by default. Financial calculations remain authoritative; AI explanations cannot modify financial records.
 
