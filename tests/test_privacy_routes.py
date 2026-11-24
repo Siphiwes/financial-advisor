@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_current_user, get_user_for_deletion
@@ -141,8 +142,6 @@ def test_account_deletion_rechecks_password_before_any_record_deletion(
             AssertionError("Deletion must not begin after failed password verification.")
         ),
     )
-
-    import pytest
 
     with pytest.raises(finance.FinanceAuthorizationError, match="current password"):
         finance.delete_user_data_and_account(account_user, "incorrect-current-password")
