@@ -12,8 +12,8 @@ import pdfplumber
 
 from app.services.fnb_csv import (
     MAX_CSV_BYTES,
-    FNBStatement,
     FNBCSVValidationError,
+    FNBStatement,
     parse_fnb_csv,
 )
 
