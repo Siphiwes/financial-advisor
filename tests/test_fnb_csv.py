@@ -37,8 +37,9 @@ def test_rejects_csv_above_20_mb_upload_limit() -> None:
 def test_fnb_csv_upload_limit_is_20_mb() -> None:
     assert MAX_CSV_BYTES == 20 * 1024 * 1024
 
+
 def test_recognizes_fnb_account_transaction_history_date_header() -> None:
-    content = b"ACCOUNT TRANSACTION HISTORY\\nDate,Amount,Balance,Description\\n"
+    content = b"ACCOUNT TRANSACTION HISTORY\nDate,Amount,Balance,Description\n"
 
     with pytest.raises(FNBCSVValidationError, match="no transaction rows"):
         parse_fnb_csv(content)
