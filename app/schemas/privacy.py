@@ -14,6 +14,10 @@ class PrivacyExportResponse(BaseModel):
     original_statement_files_included: bool = False
 
 
+class PrivacyDeleteRequest(BaseModel):
+    current_password: str = Field(min_length=12, max_length=128)
+
+
 class PrivacyDeleteResponse(BaseModel):
     deleted: bool
     deleted_record_counts: dict[str, int]
