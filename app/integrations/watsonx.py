@@ -6,6 +6,7 @@ deliberately excluded.
 """
 
 import asyncio
+import json
 import re
 import time
 from urllib.parse import urlsplit
@@ -102,7 +103,7 @@ async def _get_iam_token(api_key: str) -> str:
             raise WatsonxProviderError("IBM IAM returned an empty access token.")
 
         _cached_token = access_token
-        _token_expires_at = time.monotonic() + max(30, expires_in - 120)
+        _token_expires_at = time.monotonic() + max(0, expires_in - 120)
         return access_token
 
 
@@ -150,7 +151,7 @@ async def ask_financial_advisor(question: str, financial_summary: dict) -> tuple
         "Question:\n"
         + question
         + "\n\nVerified financial summary (JSON):\n"
-        + str(financial_summary)
+        + json.dumps(financial_summary, ensure_ascii=False, separators=(",", ":"))
         + "\n\nAnswer using only the verified summary and general financial education."
     )
 
