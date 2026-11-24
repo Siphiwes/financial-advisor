@@ -168,7 +168,7 @@
 
       <section id="imports-view" class="view hidden">
         <div class="section-heading"><div><h2>FNB statement import</h2><p class="muted">Upload your FNB PDF statement. CSV exports are also supported.</p></div><span class="status-pill">20 MB maximum</span></div>
-        <div class="notice">The preview reads the selected file in memory and does not save transactions. The original statement file is not stored by this application.</div>
+        <div class="notice">The statement is read in memory. The original PDF or CSV file is never stored. Transactions are saved only after you review the preview and confirm the import.</div>
         <form id="import-form" class="panel">
           <label for="fnb-file">FNB statement (PDF preferred, CSV also supported)</label>
           <input id="fnb-file" type="file" accept=".pdf,application/pdf,.csv,text/csv" required>
@@ -177,14 +177,14 @@
         <section id="import-preview" class="panel hidden">
           <div class="panel-heading"><div><h3>Statement preview</h3><p id="import-metadata" class="muted"></p></div><span id="import-count" class="status-pill"></span></div>
           <div id="import-transactions" class="table-wrap"></div>
-          <div id="pdf-preview-notice" class="notice hidden">PDF extraction preview only. The PDF is processed in memory and is not saved. Transaction importing from PDF will be enabled after the extracted layout is verified against your FNB statement.</div>
+          <div id="pdf-preview-notice" class="notice hidden">The PDF is processed in memory and is never saved. Only the extracted transactions are stored after you review the preview and confirm the import.</div>
           <form id="import-confirm-form" class="confirm-import">
             <label for="import-account">Import into account</label><select id="import-account" required><option value="">Select matching FNB account</option></select>
             <label class="checkbox-row"><input id="import-consent" type="checkbox" required> I confirm that this is my statement and authorise its transactions to be saved to my account.</label>
             <button id="confirm-import-button" class="button button-primary" type="submit" disabled>Confirm import</button>
             <p id="confirm-import-message" class="form-message" role="status"></p>
           </form>
-          <div id="import-gate-message" class="notice notice-warning hidden">Persistent imports are disabled until the release safeguards are complete. You can preview the statement, but cannot save it yet.</div>
+          <div id="import-gate-message" class="notice notice-warning hidden">Financial data storage is disabled by configuration. Set FINANCIAL_DATA_ENABLED=true to enable personal statement imports.</div>
         </section>
         <article class="panel privacy-card">
           <div class="panel-heading">
