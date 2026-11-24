@@ -2,7 +2,11 @@
 
 ## Target
 
-The API is deployed to IBM Cloud Code Engine in Frankfurt. The container listens on port 8080 and starts with uvicorn main:app.
+The API and same-origin web workspace are deployed as one application to IBM Cloud Code Engine in Frankfurt. The container listens on port 8080 and starts with uvicorn main:app.
+
+- Web workspace: /app
+- API documentation: /docs
+- Liveness: /health
 
 ## Configuration and secrets
 
@@ -23,7 +27,21 @@ Authentication settings:
 Financial data:
 - FINANCIAL_DATA_ENABLED=false by default.
 - Keep it false until backup/restore, retention, deletion, audit, monitoring, incident-response and privacy release controls have passed review.
-- Setting it to true enables authenticated account, transaction, category, budget, goal, analytics and confirmed FNB import routes. It is not a substitute for completing those controls.
+- Setting it to true enables authenticated account, transaction, category, budget, goal, analytics and confirmed FNB import routes.
+
+AI advisor:
+- FINANCIAL_AI_ENABLED=false by default. The AI route also requires FINANCIAL_DATA_ENABLED=true.
+- WATSONX_APIKEY: store as a Code Engine secret. Do not expose it to the browser or source control.
+- WATSONX_PROJECT_ID: the actual IBM watsonx project ID.
+- WATSONX_URL: regional watsonx.ai Runtime endpoint. Frankfurt default: https://eu-de.ml.cloud.ibm.com.
+- WATSONX_MODEL_ID: a chat-capable model available to the selected project.
+- WATSONX_API_VERSION: API version date currently supported for the selected Runtime endpoint.
+
+The API obtains an IBM IAM bearer token from the API key and caches it in application memory until shortly before expiry. It calls POST /ml/v1/text/chat?version=....
+
+The advisor route requires explicit per-request consent. It sends the user's question plus aggregated income, expense, transfer, cash-flow and category totals for the selected date range. It does not send transaction descriptions, references, account identifiers or statement files. The current route does not persist the prompt or response.
+
+Before enabling the AI feature, verify the actual project ID, model ID, API version, model permissions and regional endpoint using the IBM watsonx Developer access page.
 
 ## FNB import behaviour
 
@@ -43,12 +61,13 @@ Financial data:
 ## Release sequence
 
 1. Review the commit and dependency changes.
-2. Confirm GitHub Actions strict Ruff and pytest checks passed.
+2. Confirm GitHub Actions frontend syntax, strict Ruff and pytest checks passed.
 3. Build the image from the reviewed main commit.
 4. Verify the image digest and deploy a new Code Engine revision.
-5. Confirm the revision is Ready and test /, /health and /docs.
+5. Confirm the revision is Ready and test /app, /, /health and /docs.
 6. Verify authentication and user isolation.
-7. Verify FINANCIAL_DATA_ENABLED is still false unless all release gates are signed off.
+7. Verify FINANCIAL_DATA_ENABLED and FINANCIAL_AI_ENABLED remain false unless their respective release gates are signed off.
 8. Test Cloudant connectivity only through the temporary diagnostics procedure, then remove the diagnostics token reference.
+9. Enable external AI processing only after per-request consent wording, data minimization and IBM project configuration have been verified.
 
 A successful container deployment does not prove that finance data safeguards are complete or that a real statement has been parsed correctly.
