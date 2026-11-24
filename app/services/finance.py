@@ -608,3 +608,88 @@ def _is_conflict_error(error: Exception) -> bool:
         getattr(error, "code", None) == 409
         or getattr(error, "status_code", None) == 409
     )
+
+
+_SYSTEM_CATEGORIES = [
+    {"name": "Salary", "kind": "income"},
+    {"name": "Business income", "kind": "income"},
+    {"name": "Interest", "kind": "income"},
+    {"name": "Housing", "kind": "expense"},
+    {"name": "Groceries", "kind": "expense"},
+    {"name": "Transport", "kind": "expense"},
+    {"name": "Utilities", "kind": "expense"},
+    {"name": "Healthcare", "kind": "expense"},
+    {"name": "Insurance", "kind": "expense"},
+    {"name": "Debt repayments", "kind": "expense"},
+    {"name": "Education", "kind": "expense"},
+    {"name": "Entertainment", "kind": "expense"},
+    {"name": "Shopping", "kind": "expense"},
+    {"name": "Personal care", "kind": "expense"},
+    {"name": "Subscriptions", "kind": "expense"},
+    {"name": "Bank fees", "kind": "expense"},
+    {"name": "Transfers", "kind": "transfer"},
+    {"name": "Other", "kind": "expense"},
+]
+
+
+def list_categories(user: AuthenticatedUser) -> list[dict]:
+    """Return built-in categories and the current user's custom categories."""
+    custom, _ = _list_records(user.id, "categories", limit=500)
+    custom = [item for item in custom if item.get("is_active", True)]
+    system = [
+        {
+            "id": f"system-{index + 1}",
+            **category,
+            "is_system": True,
+            "is_active": True,
+            "created_at": None,
+            "updated_at": None,
+        }
+        for index, category in enumerate(_SYSTEM_CATEGORIES)
+    ]
+    return system + custom
+
+
+def create_category(user: AuthenticatedUser, name: str, kind: str) -> dict:
+    """Create a user-owned category without changing the built-in catalogue."""
+    normalized_name = name.strip()
+    if any(
+        item["name"].casefold() == normalized_name.casefold()
+        for item in list_categories(user)
+    ):
+        raise FinanceValidationError("A category with this name already exists.")
+
+    return _record_view(
+        _create_record(
+            user.id,
+            "categories",
+            {
+                "name": normalized_name,
+                "kind": kind,
+                "is_system": False,
+                "is_active": True,
+            },
+        )
+    )
+
+
+def update_category(user: AuthenticatedUser, category_id: str, changes: dict) -> dict:
+    """Update or deactivate a user-owned category."""
+    document = _read_record(user.id, "categories", category_id)
+    data = dict(document["data"])
+    if data.get("is_system"):
+        raise FinanceValidationError("Built-in categories cannot be changed.")
+    for key, value in changes.items():
+        if value is not None:
+            data[key] = value
+    return _record_view(_update_record(user.id, "categories", category_id, data))
+
+
+def list_import_records(user: AuthenticatedUser) -> list[dict]:
+    """List import metadata only, never the uploaded bank statement itself."""
+    items, _ = _list_records(user.id, "imports", limit=500)
+    return items
+
+
+def get_import_record(user: AuthenticatedUser, import_id: str) -> dict:
+    return _record_view(_read_record(user.id, "imports", import_id))
