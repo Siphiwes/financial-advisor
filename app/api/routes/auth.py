@@ -29,12 +29,12 @@ from app.database.users import (
     revoke_user_sessions,
 )
 from app.schemas.auth import (
-    AuthenticationActionResponse,
     AuthenticatedUser,
+    AuthenticationActionResponse,
     LoginRequest,
     PasswordChangeRequest,
-    SessionRevocationRequest,
     RegisterRequest,
+    SessionRevocationRequest,
     TokenResponse,
     UserPublic,
 )
