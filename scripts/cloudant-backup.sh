@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 077
-for name in CLOUDANT_URL CLOUDANT_API_KEY CLOUDANT_DATABASE AGE_RECIPIENT COS_BUCKET COS_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+for name in CLOUDANT_URL CLOUDANT_API_KEY CLOUDANT_DATABASE AGE_RECIPIENT COS_BUCKET COS_ENDPOINT AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION; do
   if [[ -z "$(printenv "$name" || true)" ]]; then
     printf 'Required environment variable is missing: %s\n' "$name" >&2
     exit 2
@@ -10,7 +10,7 @@ done
 for command_name in couchbackup age aws gzip sha256sum; do
   command -v "$command_name" >/dev/null 2>&1 || { printf 'Required command is not installed: %s\n' "$command_name" >&2; exit 2; }
 done
-if [[ ! "$CLOUDANT_DATABASE" =~ ^[a-z][a-z0-9_$()+/-]*$ ]]; then
+if [[ ! "$CLOUDANT_DATABASE" =~ ^[a-z][a-z0-9_$()+-]*$ ]]; then
   printf 'CLOUDANT_DATABASE contains unsupported characters.\n' >&2
   exit 2
 fi
