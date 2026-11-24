@@ -39,7 +39,7 @@ AI advisor:
 
 The API obtains an IBM IAM bearer token from the API key and caches it in application memory until shortly before expiry. It calls POST /ml/v1/text/chat?version=....
 
-The advisor route requires explicit per-request consent. It sends the user's question plus aggregated income, expense, transfer, cash-flow and category totals for the selected date range. It does not send transaction descriptions, references, account identifiers or statement files. The current route does not persist the prompt or response.
+The advisor route requires explicit per-request consent. The chat route sends the user's question plus aggregated income, expense, transfer, cash-flow and category totals for the selected date range. The category-suggestion route separately sends one selected transaction's date, description, amount and currency plus the active category names/types, only after a distinct consent action. Neither route sends account identifiers, references or statement files. Prompts and responses are not persisted.
 
 Before enabling the AI feature, verify the actual project ID, model ID, API version, model permissions and regional endpoint using the IBM watsonx Developer access page.
 
