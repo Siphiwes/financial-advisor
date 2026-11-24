@@ -627,6 +627,60 @@
     }
   });
 
+  $("forgot-password-button").addEventListener("click", async () => {
+    const email = window.prompt("Enter the email address for your account:", $("email").value.trim());
+    if (!email) return;
+    message("login-message", "Requesting a password reset...");
+    try {
+      const result = await api("/auth/password/reset/request", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      message("login-message", result.message, "success");
+    } catch (error) {
+      message("login-message", error.message, "error");
+    }
+  });
+
+  async function processAccountLink() {
+    const params = new URLSearchParams(window.location.search);
+    const verifyToken = params.get("verify_token");
+    const resetToken = params.get("reset_token");
+    if (!verifyToken && !resetToken) return;
+    window.history.replaceState({}, document.title, window.location.pathname);
+    if (verifyToken) {
+      try {
+        const result = await api("/auth/verify-email", {
+          method: "POST",
+          body: JSON.stringify({ token: verifyToken }),
+        });
+        message("login-message", result.message, "success");
+      } catch (error) {
+        message("login-message", error.message, "error");
+      }
+      return;
+    }
+    const password = window.prompt("Enter a new password (at least 12 characters):");
+    if (!password) {
+      message("login-message", "Password reset cancelled.", "error");
+      return;
+    }
+    const confirmation = window.prompt("Confirm the new password:");
+    if (password !== confirmation) {
+      message("login-message", "The passwords do not match.", "error");
+      return;
+    }
+    try {
+      const result = await api("/auth/password/reset/confirm", {
+        method: "POST",
+        body: JSON.stringify({ token: resetToken, new_password: password }),
+      });
+      message("login-message", result.message, "success");
+    } catch (error) {
+      message("login-message", error.message, "error");
+    }
+  }
+
   $("logout-button").addEventListener("click", signOut);
   document.querySelectorAll(".tab").forEach((button) => {
     button.addEventListener("click", () => switchView(button.dataset.view));
@@ -930,6 +984,8 @@
       $("delete-account-button").disabled = false;
     }
   });
+
+  processAccountLink();
 
   fetch("/health", { credentials: "same-origin" })
     .then((response) => {
