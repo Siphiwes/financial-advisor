@@ -211,9 +211,18 @@ async def confirm_fnb_csv_import(
 )
 async def confirm_fnb_pdf_import(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
-    account_id: Annotated[str, Form(description="ID of the authenticated user's FNB account")],
-    consent: Annotated[bool, Form(description="Must be true to confirm persistent transaction storage")],
-    file: Annotated[UploadFile, File(description="FNB transaction-history PDF statement")],
+    account_id: Annotated[
+        str,
+        Form(description="ID of the authenticated user's FNB account"),
+    ],
+    consent: Annotated[
+        bool,
+        Form(description="Must be true to confirm persistent transaction storage"),
+    ],
+    file: Annotated[
+        UploadFile,
+        File(description="FNB transaction-history PDF statement"),
+    ],
 ) -> FNBImportCommitResponse:
     """Persist a confirmed FNB PDF after parsing and account matching."""
     try:
