@@ -16,9 +16,8 @@ from app.database.cloudant import (
     get_database_name,
 )
 from app.database.scoped import (
-    UserScopedDocumentNotFoundError,
+    UserScopedDocumentConflictError,
     create_user_scoped_document,
-    delete_user_scoped_document,
     get_user_scoped_document,
     list_user_scoped_documents,
     update_user_scoped_document,
@@ -35,11 +34,11 @@ from app.schemas.finance import (
     FinancialAccountCreate,
     FinancialAccountUpdate,
     FinancialGoal,
-    GoalCreate,
-    GoalUpdate,
     FinancialSummary,
     GoalContribution,
     GoalContributionCreate,
+    GoalCreate,
+    GoalUpdate,
     Transaction,
     TransactionCreate,
     TransactionUpdate,
@@ -547,50 +546,70 @@ def budget_progress(
     client, database = _connection()
 
     budget_page = _list_records(
-        client,
-        database,
-        current_user.id,
-        "budgets",
-        200,
-        None,
-        {"data.period": period},
+        client, database, current_user.id, "budgets", 200, None, {"data.period": period}
     )
-    transaction_page = _list_records(
-        client,
-        database,
-        current_user.id,
-        "transactions",
-        500,
-        None,
-        {
-            "data.transaction_date": {
-                "$gte": first_day.isoformat(),
-                "$lte": last_day.isoformat(),
+    budgets = [
+        item for item in budget_page["items"] if item["data"].get("is_active") is True
+    ]
+
+    transactions: list[dict] = []
+    bookmark = None
+    while True:
+        page = _list_records(
+            client,
+            database,
+            current_user.id,
+            "transactions",
+            500,
+            bookmark,
+            {
+                "data.transaction_date": {
+                    "$gte": first_day.isoformat(),
+                    "$lte": last_day.isoformat(),
+                },
+                "data.is_deleted": {"$ne": True},
             },
-            "data.is_deleted": {"$ne": True},
-        },
-    )
-    category_page = _list_records(
-        client, database, current_user.id, "categories", 200, None
-    )
-    category_kinds = {
-        item["record_id"]: item["data"].get("kind")
-        for item in category_page["items"]
-    }
+        )
+        transactions.extend(page["items"])
+        bookmark = page.get("next_bookmark")
+        if not bookmark:
+            break
+        if len(transactions) >= 10_000:
+            raise HTTPException(
+                status_code=413,
+                detail="The selected month contains too many transactions for budget progress.",
+            )
+
+    category_kinds: dict[str, str] = {}
+    bookmark = None
+    while True:
+        page = _list_records(
+            client, database, current_user.id, "categories", 200, bookmark
+        )
+        category_kinds.update(
+            {
+                item["record_id"]: item["data"].get("kind")
+                for item in page["items"]
+            }
+        )
+        bookmark = page.get("next_bookmark")
+        if not bookmark:
+            break
 
     results = []
-    for budget_document in budget_page["items"]:
+    for budget_document in budgets:
         budget = budget_document["data"]
         category_id = budget.get("category_id")
         spent = Decimal("0.00")
-        for transaction_document in transaction_page["items"]:
+        for transaction_document in transactions:
             transaction = transaction_document["data"]
             if transaction.get("is_deleted") is True:
                 continue
             if transaction.get("currency") != budget["currency"]:
                 continue
             transaction_category = transaction.get("category_id")
-            if category_kinds.get(transaction_category) == "transfer":
+            category_kind = category_kinds.get(transaction_category)
+            if category_kind in {"income", "transfer"}:
                 continue
             if category_id is not None and transaction_category != category_id:
                 continue
@@ -719,10 +738,8 @@ def add_goal_contribution(
 
     client, database = _connection()
     goal = _require_document(client, database, current_user.id, "goals", goal_id)
-    if payload.amount <= 0:
-        raise HTTPException(status_code=422, detail="Contribution amount must be positive.")
-    if goal["data"]["currency"] != goal["data"]["currency"].upper():
-        raise HTTPException(status_code=409, detail="The goal currency is invalid.")
+    if goal["data"].get("is_active") is not True:
+        raise HTTPException(status_code=409, detail="The financial goal is inactive.")
 
     record_id = hashlib.sha256(
         f"{goal_id}:{idempotency_key}".encode("utf-8")
@@ -730,14 +747,26 @@ def add_goal_contribution(
     existing = get_user_scoped_document(
         client, database, current_user.id, "goal_contributions", record_id
     )
-    if existing is None:
-        data = {
-            "goal_id": goal_id,
-            "amount": str(payload.amount),
-            "currency": goal["data"]["currency"],
-            "contribution_date": payload.contribution_date.isoformat(),
-            "note": payload.note,
-        }
+    data = {
+        "goal_id": goal_id,
+        "amount": format(payload.amount, "f"),
+        "currency": goal["data"]["currency"],
+        "contribution_date": payload.contribution_date.isoformat(),
+        "note": payload.note,
+    }
+    if existing is not None:
+        existing_data = existing["data"]
+        same_request = (
+            Decimal(str(existing_data["amount"])) == payload.amount
+            and existing_data["contribution_date"] == data["contribution_date"]
+            and existing_data.get("note") == payload.note
+        )
+        if not same_request:
+            raise HTTPException(
+                status_code=409,
+                detail="This idempotency key was already used for a different contribution.",
+            )
+    else:
         try:
             create_user_scoped_document(
                 client,
@@ -747,6 +776,7 @@ def add_goal_contribution(
                 data,
                 record_id=record_id,
             )
+        except UserScopedDocumentConflictError:
             existing = _require_document(
                 client,
                 database,
@@ -754,10 +784,25 @@ def add_goal_contribution(
                 "goal_contributions",
                 record_id,
             )
+            if (
+                Decimal(str(existing["data"]["amount"])) != payload.amount
+                or existing["data"]["contribution_date"] != data["contribution_date"]
+                or existing["data"].get("note") != payload.note
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="This idempotency key was already used for a different contribution.",
+                )
         except Exception as exc:
-            if isinstance(exc, HTTPException):
-                raise
             raise _handle_storage_error(exc) from exc
+        else:
+            existing = _require_document(
+                client,
+                database,
+                current_user.id,
+                "goal_contributions",
+                record_id,
+            )
     return _as_record(existing, GoalContribution)
 
 
