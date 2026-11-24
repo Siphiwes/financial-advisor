@@ -213,6 +213,8 @@
           <p>This permanently deletes your Cloudant login record and your financial accounts, transactions, budgets, goals, categories and import history. You won't be able to sign in again with this account.</p>
           <label for="delete-confirmation">Type DELETE to confirm</label>
           <input id="delete-confirmation" autocomplete="off" maxlength="6" placeholder="DELETE">
+          <label for="delete-password">Confirm your current password</label>
+          <input id="delete-password" type="password" autocomplete="current-password" required>
           <button id="delete-account-button" class="button button-danger" type="button" disabled>Delete account permanently</button>
           <p id="delete-message" class="form-message" role="status"></p>
         </article>
