@@ -15,7 +15,6 @@ import httpx
 
 from app.core.config import get_setting
 
-
 IAM_TOKEN_URL = "https://iam.cloud.ibm.com/identity/token"
 IAM_GRANT_TYPE = "urn:ibm:params:oauth:grant-type:apikey"
 _token_lock = asyncio.Lock()
