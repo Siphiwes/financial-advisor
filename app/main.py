@@ -1,7 +1,9 @@
-"""FastAPI application factory and current API endpoints."""
+"""FastAPI application factory and API endpoints."""
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+
+from app.api.routes.diagnostics import router as diagnostics_router
 
 # Loads a local .env file when present. Code Engine supplies deployed values
 # through environment variables and does not need a .env file in the image.
@@ -15,6 +17,8 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
 
+    application.include_router(diagnostics_router)
+
     @application.get("/", tags=["system"])
     def read_root() -> dict[str, str]:
         return {
@@ -25,7 +29,7 @@ def create_app() -> FastAPI:
 
     @application.get("/health", tags=["system"])
     def health_check() -> dict[str, str]:
-        # Liveness only. External dependency checks will be separate.
+        # Liveness only. External dependency checks are separate and protected.
         return {"status": "healthy"}
 
     return application
