@@ -461,6 +461,9 @@
         outstanding.append(el("strong", money(item.outstanding_total, item.currency)));
         outstanding.append(el("small", item.debt_count + " active debts · Original " + money(item.original_total, item.currency)));
         if (compact) {
+          outstanding.append(el("small", "Monthly repayments " + money(item.monthly_repayments, item.currency)));
+          outstanding.append(el("small", "Average monthly income " + money(item.average_monthly_income, item.currency)));
+          outstanding.append(el("small", "Repayment-to-income " + (item.debt_to_income_percent === null ? "Not available" : Number(item.debt_to_income_percent).toFixed(1) + "%")));
           outstanding.append(el("small", item.trend === "increasing" ? "Debt increasing" : item.trend === "decreasing" ? "Debt decreasing" : item.trend === "unchanged" ? "No change" : "Trend needs more history"));
           target.append(outstanding);
           return;
