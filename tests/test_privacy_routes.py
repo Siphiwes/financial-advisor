@@ -100,7 +100,8 @@ def test_privacy_delete_remains_available_when_finance_writes_are_disabled(
     )
 
     try:
-        response = client.delete(
+        response = client.request(
+            "DELETE",
             "/api/v1/privacy/data",
             json={"current_password": "test-current-password"},
         )
