@@ -144,5 +144,5 @@ def test_account_deletion_rechecks_password_before_any_record_deletion(
 
     import pytest
 
-    with pytest.raises(finance.FinanceValidationError, match="current password"):
+    with pytest.raises(finance.FinanceAuthorizationError, match="current password"):
         finance.delete_user_data_and_account(account_user, "incorrect-current-password")
