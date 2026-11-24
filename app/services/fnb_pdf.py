@@ -22,20 +22,20 @@ from app.services.fnb_csv import (
 MAX_PDF_PAGES = 100
 
 _TRANSACTION_ROW = re.compile(
-    r"^(?P<date>\\d{1,2}\\s+[A-Za-z]{3}\\s+\\d{4})\\s+"
-    r"(?P<description>.+?)\\s+"
-    r"(?P<service_fee>[0-9,]+\\.\\d{2})\\s+"
-    r"(?P<amount>[+-]?[0-9,]+\\.\\d{2})\\s+"
-    r"(?P<amount_direction>DR|CR)\\s+"
-    r"(?P<balance>[0-9,]+\\.\\d{2})\\s+"
+    r"^(?P<date>\d{1,2}\s+[A-Za-z]{3}\s+\d{4})\s+"
+    r"(?P<description>.+?)\s+"
+    r"(?P<service_fee>[0-9,]+\.\d{2})\s+"
+    r"(?P<amount>[+-]?[0-9,]+\.\d{2})\s+"
+    r"(?P<amount_direction>DR|CR)\s+"
+    r"(?P<balance>[0-9,]+\.\d{2})\s+"
     r"(?P<balance_direction>DR|CR)$",
     re.IGNORECASE,
 )
-_DATE_PREFIX = re.compile(r"^\\d{1,2}\\s+[A-Za-z]{3}\\s+\\d{4}\\b")
-_STATEMENT_DATE = re.compile(r"\\bDate:\\s*(\\d{1,2}\\s+[A-Za-z]{3}\\s+\\d{4})")
-_ACCOUNT_NUMBER = re.compile(r"Selected Account:\\s*([0-9 ]+)", re.IGNORECASE)
+_DATE_PREFIX = re.compile(r"^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\b")
+_STATEMENT_DATE = re.compile(r"\bDate:\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})")
+_ACCOUNT_NUMBER = re.compile(r"Selected Account:\s*([0-9 ]+)", re.IGNORECASE)
 _CURRENT_BALANCE = re.compile(
-    r"Current Balance:\\s*([0-9,]+\\.\\d{2})\\s+(CR|DR)", re.IGNORECASE
+    r"Current Balance:\s*([0-9,]+\.\d{2})\s+(CR|DR)", re.IGNORECASE
 )
 _IGNORED_PREFIXES = (
     "Printed ",
@@ -111,7 +111,7 @@ def parse_fnb_pdf(content: bytes) -> FNBStatement:
     balance_match = _CURRENT_BALANCE.search(statement_text)
 
     statement_date = _parse_date(date_match.group(1)) if date_match else None
-    account_digits = re.sub(r"\\D", "", account_match.group(1)) if account_match else ""
+    account_digits = re.sub(r"\D", "", account_match.group(1)) if account_match else ""
     account_last_four = account_digits[-4:] if len(account_digits) >= 4 else None
     closing_balance = (
         _signed_amount(balance_match.group(1), balance_match.group(2))
