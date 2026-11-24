@@ -77,6 +77,11 @@ def register(
             status_code=503,
             detail="Account registration is disabled until configured.",
         )
+    if len(expected_code.encode("utf-8")) < 32:
+        raise HTTPException(
+            status_code=503,
+            detail="Account registration is not securely configured.",
+        )
     if not invitation_code or not hmac.compare_digest(invitation_code, expected_code):
         raise HTTPException(status_code=403, detail="A valid invitation is required.")
 
