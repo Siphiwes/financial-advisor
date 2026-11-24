@@ -88,16 +88,26 @@
         <button type="button" class="tab" data-view="imports-view">FNB import</button>
         <button type="button" class="tab" data-view="budgets-view">Budgets</button>
         <button type="button" class="tab" data-view="goals-view">Goals</button>
+        <button type="button" class="tab" data-view="debts-view">Debts</button>
         <button type="button" class="tab" data-view="categories-view">Categories</button>
         <button type="button" class="tab" data-view="privacy-view">Privacy & data</button>
       </nav>
 
       <section id="dashboard-view" class="view">
         <div id="finance-lock-notice" class="notice notice-warning hidden" aria-hidden="true"></div>
+        <article class="panel storage-overview">
+          <div class="panel-heading"><div><h2>Workspace storage</h2><p class="muted">All personal finance modules use your secured Cloudant storage.</p></div><span id="storage-overview-status" class="status-pill status-warning">Checking</span></div>
+          <div id="storage-status-list" class="storage-status-grid"></div>
+        </article>
         <div id="summary-cards" class="metric-grid">
           <article class="metric-card"><span>Income</span><strong>Not available</strong><small>Awaiting saved transactions</small></article>
           <article class="metric-card"><span>Expenses</span><strong>Not available</strong><small>Awaiting saved transactions</small></article>
           <article class="metric-card"><span>Net cash flow</span><strong>Not available</strong><small>Calculated per currency</small></article>
+        </div>
+        <div id="debt-overview-cards" class="metric-grid debt-overview-grid">
+          <article class="metric-card"><span>Total outstanding debt</span><strong>No recorded data</strong><small>Add debts to track balances</small></article>
+          <article class="metric-card"><span>Monthly repayments</span><strong>No recorded data</strong><small>Compared with income</small></article>
+          <article class="metric-card"><span>Debt trend</span><strong>Not available</strong><small>Needs balance history</small></article>
         </div>
         <div class="two-column">
           <article class="panel">
@@ -113,11 +123,11 @@
           <div class="ai-panel-content">
             <p class="eyebrow">AI FINANCIAL ADVISOR</p>
             <h2>Ask about your financial position</h2>
-            <p class="muted">IBM watsonx.ai receives your question and an aggregated financial summary only. Transaction descriptions, references and account identifiers are excluded.</p>
+            <p class="muted">With your explicit consent, IBM watsonx.ai receives your complete saved financial records. This includes transaction descriptions, references, account identifiers, balances, categories, budgets, goals and debts. The data is sent to IBM for the requested analysis.</p>
             <form id="advisor-form" class="advisor-form">
               <label for="advisor-question">Your question</label>
               <textarea id="advisor-question" rows="3" maxlength="2000" required placeholder="Ask about your recorded income, expenses, categories or cash flow."></textarea>
-              <label class="checkbox-row"><input id="advisor-consent" type="checkbox" required> I explicitly consent to sending my question and aggregated financial summary to IBM watsonx.ai for this response.</label>
+              <label class="checkbox-row"><input id="advisor-consent" type="checkbox" required> I explicitly consent to sending my question and all saved financial records, including transaction descriptions, references and account identifiers, to IBM watsonx.ai for this response.</label>
               <button id="advisor-submit" class="button button-primary" type="submit" disabled>Ask advisor</button>
             </form>
             <div id="advisor-answer" class="advisor-answer hidden" aria-live="polite"></div>
@@ -221,6 +231,31 @@
         <div id="goal-list" class="record-list"></div>
       </section>
 
+      <section id="debts-view" class="view hidden">
+        <div class="section-heading"><div><h2>Debt management</h2><p class="muted">Record creditors, balances, repayment commitments and changes over time.</p></div><button id="refresh-debts" class="button button-secondary" type="button">Refresh</button></div>
+        <div class="metric-grid" id="debt-summary-cards">
+          <article class="metric-card"><span>Outstanding debt</span><strong>Loading</strong><small>All active debts</small></article>
+          <article class="metric-card"><span>Monthly repayments</span><strong>Loading</strong><small>Recorded commitments</small></article>
+          <article class="metric-card"><span>Debt-to-income</span><strong>Loading</strong><small>Repayments against average monthly income</small></article>
+        </div>
+        <div id="debts-lock" class="notice notice-warning hidden">Debt storage is currently disabled.</div>
+        <form id="debt-form" class="panel form-grid">
+          <h3 class="span-all">Add a debt</h3>
+          <div><label for="debt-creditor">Creditor / lender</label><input id="debt-creditor" required maxlength="120" placeholder="Bank or lender"></div>
+          <div><label for="debt-name">Debt name</label><input id="debt-name" required maxlength="120" placeholder="Vehicle finance, credit card..."></div>
+          <div><label for="debt-type">Debt type</label><select id="debt-type"><option value="personal_loan">Personal loan</option><option value="credit_card">Credit card</option><option value="vehicle_finance">Vehicle finance</option><option value="home_loan">Home loan</option><option value="student_loan">Student loan</option><option value="overdraft">Overdraft</option><option value="other">Other</option></select></div>
+          <div><label for="debt-original">Original amount (ZAR)</label><input id="debt-original" type="number" min="0.01" step="0.01" required></div>
+          <div><label for="debt-balance">Outstanding balance (ZAR)</label><input id="debt-balance" type="number" min="0" step="0.01" required></div>
+          <div><label for="debt-payment">Monthly repayment (ZAR)</label><input id="debt-payment" type="number" min="0" step="0.01" value="0"></div>
+          <div><label for="debt-rate">Interest rate % (optional)</label><input id="debt-rate" type="number" min="0" max="100" step="0.001"></div>
+          <div><label for="debt-opened">Start date (optional)</label><input id="debt-opened" type="date"></div>
+          <div><label for="debt-due">Next due date (optional)</label><input id="debt-due" type="date"></div>
+          <div class="span-all"><label for="debt-notes">Notes (optional)</label><textarea id="debt-notes" rows="2" maxlength="2000"></textarea></div>
+          <div class="span-all"><button class="button button-primary" type="submit">Save debt</button><span id="debt-message" class="form-message" role="status"></span></div>
+        </form>
+        <div id="debt-list" class="record-list"></div>
+      </section>
+
       <section id="categories-view" class="view hidden">
         <div class="section-heading"><div><h2>Categories</h2><p class="muted">Use built-in or create your own spending categories.</p></div><button id="refresh-categories" class="button button-secondary" type="button">Refresh</button></div>
         <div id="categories-lock" class="notice notice-warning hidden">Category management is currently disabled.</div>
@@ -237,7 +272,7 @@
         <div class="section-heading"><div><h2>Your data and privacy</h2><p class="muted">Retrieve a copy of your records or permanently delete your account and associated financial data.</p></div></div>
         <article class="panel privacy-card">
           <h3>Download your data</h3>
-          <p class="muted">Export includes your account metadata, transactions, categories, budgets, goals and import history. Original bank statement files aren't retained by this application and won't be included.</p>
+          <p class="muted">Export includes your account metadata, transactions, categories, budgets, goals, debts and import history. Original bank statement files aren't retained by this application and won't be included.</p>
           <button id="export-data-button" class="button button-secondary" type="button">Download my data</button>
           <p id="export-message" class="form-message" role="status"></p>
         </article>
