@@ -297,6 +297,5 @@ def ensure_user_scope_indexes(client, database: str) -> None:
                 name=name,
                 type="json",
                 index={"fields": fields},
-                partitioned=False,
             ).get_result()
         _INDEXED_DATABASES.add(database)
