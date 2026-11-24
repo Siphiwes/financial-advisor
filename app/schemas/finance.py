@@ -218,6 +218,8 @@ class ImportRecordResponse(BaseModel):
     imported_count: int
     duplicate_count: int
     statement_date: date | None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
