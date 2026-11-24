@@ -716,11 +716,15 @@
 
   $("delete-confirmation").addEventListener("input", () => {
     $("delete-account-button").disabled =
-      $("delete-confirmation").value.trim() !== "DELETE";
+      $("delete-confirmation").value.trim() !== "DELETE" ||
+      !$("delete-password").value;
   });
 
   $("delete-account-button").addEventListener("click", async () => {
-    if ($("delete-confirmation").value.trim() !== "DELETE") return;
+    if (
+      $("delete-confirmation").value.trim() !== "DELETE" ||
+      !$("delete-password").value
+    ) return;
     const accepted = window.confirm(
       "This permanently deletes your login and financial records. It cannot be undone. Continue?"
     );
@@ -728,9 +732,13 @@
     message("delete-message", "Deleting account and financial records...");
     $("delete-account-button").disabled = true;
     try {
-      const result = await api("/api/v1/privacy/data", { method: "DELETE" });
+      const result = await api("/api/v1/privacy/data", {
+        method: "DELETE",
+        body: JSON.stringify({ current_password: $("delete-password").value }),
+      });
       state.token = null;
       state.user = null;
+      $("delete-password").value = "";
       $("workspace").classList.add("hidden");
       $("logout-button").classList.add("hidden");
       $("login-panel").classList.remove("hidden");
