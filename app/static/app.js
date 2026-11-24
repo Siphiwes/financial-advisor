@@ -111,6 +111,7 @@
       if (field) field.value = "";
     });
     $("workspace").classList.add("hidden");
+    $("login-shell").classList.remove("hidden");
     $("login-panel").classList.remove("hidden");
     $("register-panel").classList.add("hidden");
     $("logout-button").classList.add("hidden");
@@ -561,7 +562,7 @@
   }
 
   async function beginWorkspace() {
-    $("login-panel").classList.add("hidden");
+    $("login-shell").classList.add("hidden");
     $("workspace").classList.remove("hidden");
     $("logout-button").classList.remove("hidden");
     $("user-email").textContent = state.user.email;
@@ -1005,7 +1006,9 @@
       $("delete-password").value = "";
       $("workspace").classList.add("hidden");
       $("logout-button").classList.add("hidden");
+      $("login-shell").classList.remove("hidden");
       $("login-panel").classList.remove("hidden");
+      $("register-panel").classList.add("hidden");
       message("login-message", result.message, "success");
     } catch (error) {
       message("delete-message", error.message, "error");
