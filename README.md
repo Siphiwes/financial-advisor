@@ -126,3 +126,12 @@ The container runs as a non-root user. The Dockerfile copies the same-origin fro
 - Keep both disabled until backups, restore, retention, deletion, audit coverage, monitoring and applicable privacy review are complete.
 - Preserve original imported transaction fields when users make corrections.
 - Financial amounts must be calculated using exact decimal arithmetic. AI must not invent balances, transactions or financial metrics.
+
+
+## Privacy and account controls
+
+- GET /api/v1/privacy/export: download the authenticated user's application records as JSON.
+- GET /api/v1/privacy/audit: view recent non-content account activity events.
+- DELETE /api/v1/privacy/data: permanently delete the user's financial records and login account after current-password confirmation.
+
+Export and deletion remain available while finance write routes are disabled. They are currently limited to 10,000 records per collection; larger accounts require controlled support handling.
