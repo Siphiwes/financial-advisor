@@ -10,7 +10,7 @@ import logging
 import re
 from calendar import monthrange
 from collections import defaultdict
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -37,6 +37,7 @@ from app.schemas.finance import (
 from app.services.fnb_csv import FNBStatement
 
 logger = logging.getLogger(__name__)
+SOUTH_AFRICAN_TIMEZONE = timezone(timedelta(hours=2))
 
 
 class FinanceRecordNotFoundError(LookupError):
@@ -874,7 +875,7 @@ def _budget_period_dates(budget: dict, today: date) -> tuple[date, date]:
 
 def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) -> list[dict]:
     """Calculate budget usage from the user's own saved transactions."""
-    today = today or date.today()
+    today = today or datetime.now(SOUTH_AFRICAN_TIMEZONE).date()
     budgets = list_budgets(user)
     transactions, _ = _list_all_records(user.id, "transactions")
     progress = []
