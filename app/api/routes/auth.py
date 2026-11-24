@@ -398,6 +398,9 @@ def resend_verification(payload: PasswordResetRequest) -> AuthenticationActionRe
 @router.post("/password/reset/request", response_model=AuthenticationActionResponse)
 def request_password_reset(payload: PasswordResetRequest) -> AuthenticationActionResponse:
     """Request a password reset without disclosing whether an account exists."""
+    enabled = (get_setting("EMAIL_ENABLED", "false") or "false").strip().casefold()
+    if enabled not in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=503, detail="Transactional email is not configured.")
     client, database = _cloudant_connection()
     try:
         user = get_user_by_email(client, database, str(payload.email))
