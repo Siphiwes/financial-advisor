@@ -100,7 +100,13 @@ def parse_fnb_pdf(content: bytes) -> FNBStatement:
                         ]
                         if len(cells) < 5:
                             continue
-                        date_text, description, service_fee_text, amount_text, balance_text = cells[:5]
+                        (
+                            date_text,
+                            description,
+                            service_fee_text,
+                            amount_text,
+                            balance_text,
+                        ) = cells[:5]
                         if not re.fullmatch(r"\d{1,2}\s+[A-Za-z]{3}\s+20\d{2}", date_text):
                             # Ignore blank rows and section labels such as "OTHER".
                             continue
