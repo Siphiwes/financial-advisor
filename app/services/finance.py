@@ -23,6 +23,7 @@ from app.database.scoped import (
     update_user_scoped_document,
 )
 from app.schemas.auth import AuthenticatedUser
+from app.core.security import verify_password
 from app.database.users import get_user_by_email
 from app.schemas.finance import (
     CategorySummary,
@@ -951,13 +952,26 @@ def export_user_data(user: AuthenticatedUser) -> dict:
     }
 
 
-def delete_user_data_and_account(user: AuthenticatedUser) -> dict:
+def delete_user_data_and_account(user: AuthenticatedUser, current_password: str) -> dict:
     """Delete all user-owned finance documents and the Cloudant login document.
 
     The account document is deleted last. If a Cloudant operation fails, the
     account remains active so the user can authenticate and retry deletion.
     """
     client, database = _connection()
+    user_document = get_user_by_email(client, database, user.email)
+    if (
+        not user_document
+        or user_document.get("type") != "user"
+        or user_document.get("user_id") != user.id
+        or not user_document.get("_rev")
+        or not user_document.get("password_hash")
+        or not verify_password(current_password, user_document["password_hash"])
+    ):
+        raise FinanceValidationError(
+            "The current password is incorrect or the account could not be verified."
+        )
+
     documents_by_collection: dict[str, list[dict]] = {}
 
     # Check all collections for the supported deletion bound before removing
@@ -977,15 +991,6 @@ def delete_user_data_and_account(user: AuthenticatedUser) -> dict:
                 "Contact support to complete a controlled deletion."
             )
         documents_by_collection[collection] = documents
-
-    user_document = get_user_by_email(client, database, user.email)
-    if (
-        not user_document
-        or user_document.get("type") != "user"
-        or user_document.get("user_id") != user.id
-        or not user_document.get("_rev")
-    ):
-        raise FinanceRecordNotFoundError("The authenticated account could not be verified for deletion.")
 
     deleted_counts: dict[str, int] = {}
     for collection, documents in documents_by_collection.items():
