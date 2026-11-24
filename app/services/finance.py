@@ -30,6 +30,7 @@ from app.database.users import get_user_by_email
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     CategorySummary,
+    DebtSummaryResponse,
     CurrencySummary,
     FinancialSummaryResponse,
     FNBImportCommitResponse,
