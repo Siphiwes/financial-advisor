@@ -253,7 +253,7 @@ def update_transaction(user: AuthenticatedUser, transaction_id: str, changes: di
 
     normalized = {}
     for key, value in changes.items():
-        if value is None:
+        if value is None and key not in {"reference", "category", "notes"}:
             continue
         if key == "transaction_date":
             value = value.isoformat()
@@ -340,7 +340,7 @@ def update_goal(user: AuthenticatedUser, goal_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "goals", goal_id)
     data = dict(document["data"])
     for key, value in changes.items():
-        if value is None:
+        if value is None and key != "target_date":
             continue
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
