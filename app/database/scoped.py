@@ -1,8 +1,8 @@
 """Cloudant helpers that namespace every finance record by its owner."""
 
 import re
-from threading import Lock
 from datetime import UTC, datetime
+from threading import Lock
 from uuid import UUID, uuid4
 
 _COLLECTION_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,31}$")
@@ -235,7 +235,7 @@ def bulk_create_user_scoped_documents(
     records: list[tuple[str, dict]],
 ) -> dict[str, int]:
     """Create deterministic user-scoped records in Cloudant bulk batches."""
-    normalized_user_id = _validate_scope(user_id, collection)
+    _validate_scope(user_id, collection)
     now = datetime.now(UTC).isoformat()
     created_count = 0
     conflict_count = 0
