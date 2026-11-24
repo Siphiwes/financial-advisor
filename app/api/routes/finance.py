@@ -3,7 +3,7 @@
 import hashlib
 import logging
 import re
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated
 
@@ -246,7 +246,7 @@ def create_transaction(
             detail="The transaction currency must match the selected account currency.",
         )
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     data = {
         **payload.model_dump(mode="json"),
         "source": "manual",
@@ -742,7 +742,7 @@ def add_goal_contribution(
         raise HTTPException(status_code=409, detail="The financial goal is inactive.")
 
     record_id = hashlib.sha256(
-        f"{goal_id}:{idempotency_key}".encode("utf-8")
+        f"{goal_id}:{idempotency_key}".encode()
     ).hexdigest()[:32]
     existing = get_user_scoped_document(
         client, database, current_user.id, "goal_contributions", record_id
@@ -792,7 +792,7 @@ def add_goal_contribution(
                 raise HTTPException(
                     status_code=409,
                     detail="This idempotency key was already used for a different contribution.",
-                )
+                ) from None
         except Exception as exc:
             raise _handle_storage_error(exc) from exc
         else:
@@ -840,7 +840,10 @@ def financial_summary(
     if from_date > to_date:
         raise HTTPException(status_code=422, detail="from_date must not be after to_date.")
     if len(currency) != 3 or not currency.isalpha() or currency.upper() != currency:
-        raise HTTPException(status_code=422, detail="currency must be a three-letter uppercase code.")
+        raise HTTPException(
+            status_code=422,
+            detail="currency must be a three-letter uppercase code.",
+        )
 
     client, database = _connection()
     transactions: list[dict] = []
