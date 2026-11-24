@@ -86,7 +86,8 @@ async def chat_with_advisor(
         data_shared=[
             "Your question",
             "All saved account records, including account identifiers and stored account numbers",
-            "All saved transactions, including descriptions, references, amounts, dates, account IDs and original import fields",
+            "All saved transactions, including descriptions, references, amounts, dates, "
+            "account IDs and original import fields",
             "All saved categories, budgets, goals and debt records",
             "Calculated income, expense, cash-flow and debt summaries",
         ],
@@ -110,7 +111,8 @@ async def suggest_transaction_category(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
                 "Explicit consent is required before the selected transaction, including its "
-                "description, reference, account identifier and stored fields, is sent to IBM watsonx.ai."
+                "description, reference, account identifier and stored fields, is sent to "
+                "IBM watsonx.ai."
             ),
         )
 
@@ -188,7 +190,8 @@ async def suggest_transaction_category(
         explanation=explanation.strip()[:500],
         applied=False,
         data_shared=[
-            "All stored fields for the selected transaction, including description, reference and account identifier",
+            "All stored fields for the selected transaction, including description, "
+            "reference and account identifier",
             "The associated stored account record, including its account identifier",
             "Available category names and types",
         ],
