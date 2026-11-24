@@ -17,11 +17,13 @@ from app.database.cloudant import get_cloudant_client, get_database_name
 from app.database.scoped import (
     UserScopedDocumentNotFoundError,
     create_user_scoped_document,
+    delete_user_scoped_document,
     get_user_scoped_document,
     list_user_scoped_documents,
     update_user_scoped_document,
 )
 from app.schemas.auth import AuthenticatedUser
+from app.database.users import get_user_by_email
 from app.schemas.finance import (
     CategorySummary,
     CurrencySummary,
@@ -906,3 +908,112 @@ def recurring_payment_candidates(user: AuthenticatedUser) -> list[dict]:
         reverse=True,
     )
     return candidates[:100]
+
+
+
+_PRIVACY_COLLECTIONS = (
+    "accounts",
+    "transactions",
+    "categories",
+    "budgets",
+    "goals",
+    "imports",
+    "audit",
+)
+
+
+def export_user_data(user: AuthenticatedUser) -> dict:
+    """Build a bounded export of the authenticated user's own application data."""
+    exported: dict[str, list[dict]] = {}
+    counts: dict[str, int] = {}
+    for collection in _PRIVACY_COLLECTIONS:
+        items, has_more = _list_records(
+            user.id,
+            collection,
+            limit=10_000,
+            offset=0,
+        )
+        if has_more:
+            raise FinanceValidationError(
+                "This account contains more than 10,000 records in one collection. "
+                "Contact support for a complete paginated export."
+            )
+        exported[collection] = items
+        counts[collection] = len(items)
+
+    return {
+        "exported_at": datetime.now(UTC),
+        "user_id": user.id,
+        "email": user.email,
+        "data": exported,
+        "record_counts": counts,
+        "original_statement_files_included": False,
+    }
+
+
+def delete_user_data_and_account(user: AuthenticatedUser) -> dict:
+    """Delete all user-owned finance documents and the Cloudant login document.
+
+    The account document is deleted last. If a Cloudant operation fails, the
+    account remains active so the user can authenticate and retry deletion.
+    """
+    client, database = _connection()
+    documents_by_collection: dict[str, list[dict]] = {}
+
+    # Check all collections for the supported deletion bound before removing
+    # any records, avoiding a known partial delete when a collection is too large.
+    for collection in _PRIVACY_COLLECTIONS:
+        documents, has_more = list_user_scoped_documents(
+            client,
+            database,
+            user.id,
+            collection,
+            limit=10_000,
+            offset=0,
+        )
+        if has_more:
+            raise FinanceValidationError(
+                "This account contains more than 10,000 records in one collection. "
+                "Contact support to complete a controlled deletion."
+            )
+        documents_by_collection[collection] = documents
+
+    user_document = get_user_by_email(client, database, user.email)
+    if (
+        not user_document
+        or user_document.get("type") != "user"
+        or user_document.get("user_id") != user.id
+        or not user_document.get("_rev")
+    ):
+        raise FinanceRecordNotFoundError("The authenticated account could not be verified for deletion.")
+
+    deleted_counts: dict[str, int] = {}
+    for collection, documents in documents_by_collection.items():
+        deleted_count = 0
+        for document in documents:
+            result = delete_user_scoped_document(
+                client,
+                database,
+                user.id,
+                collection,
+                document["record_id"],
+            )
+            if result is not True:
+                raise RuntimeError("Cloudant did not confirm a financial record deletion.")
+            deleted_count += 1
+        deleted_counts[collection] = deleted_count
+
+    user_result = client.delete_document(
+        db=database,
+        doc_id=user_document["_id"],
+        rev=user_document["_rev"],
+    ).get_result()
+    if user_result.get("ok") is not True:
+        raise RuntimeError("Cloudant did not confirm account deletion.")
+
+    return {
+        "deleted": True,
+        "deleted_record_counts": deleted_counts,
+        "account_access_revoked": True,
+        "message": "The financial records and login account were deleted.",
+    }
