@@ -135,11 +135,11 @@ The existing audit collection is user-scoped and is deleted with the account. It
 
 ## Personal-use transactional email
 
-- [ ] Configure a personal SMTP provider using TLS (port 465 or STARTTLS on 587).
-- [ ] Store the SMTP app password in an IBM Code Engine secret.
-- [ ] Set the SMTP environment variables and the deployed HTTPS APP_PUBLIC_URL.
-- [ ] Send and receive a real verification email.
-- [ ] Keep EMAIL_ENABLED=false until delivery succeeds.
-- [ ] Keep registration invitation-only. Do not enable public sign-up.
+- [x] Configure Gmail SMTP using TLS on port 465.
+- [x] Store the Gmail app password in the IBM Code Engine secret `gmail-smtp-secret`.
+- [x] Reference the secret as `SMTP_PASSWORD` and configure the SMTP environment variables plus deployed HTTPS `APP_PUBLIC_URL`.
+- [ ] Send and receive a real verification email after the merged application code is deployed.
+- [ ] Confirm the verification link opens the deployed application and completes account verification.
+- [x] Keep registration invitation-only. Do not enable public sign-up.
 
-See docs/transactional-email.md for the personal Gmail SMTP setup and account workflow details.
+The SMTP settings are configured, but email delivery is not considered verified until the end-to-end test succeeds. See docs/transactional-email.md for the personal Gmail SMTP setup and account workflow details.
