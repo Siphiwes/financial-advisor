@@ -56,8 +56,9 @@ def create_user(client, database: str, email: str, password: str) -> dict:
     }
 
     try:
-        result = client.post_document(
+        result = client.put_document(
             db=database,
+            doc_id=document_id,
             document=user_document,
         ).get_result()
     except Exception as exc:
