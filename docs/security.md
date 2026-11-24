@@ -86,3 +86,15 @@ Run the container as a non-root user. Restrict CORS to known frontend origins wh
 - Encrypted Cloudant backup and restore scripts are provided under scripts/. They require a separate protected runner, COS HMAC credentials and age encryption keys. The scripts do not run in the application container.
 - Backup and restore scripts must be syntax-checked and a recovery test completed before financial-data writes are enabled.
 - No automated retention deletion or backup lifecycle expiry is enabled until the data controller approves the retention policy.
+
+
+## Shared authentication rate limiting
+
+- Login and invite-only registration support shared Redis-backed fixed-window limits across Code Engine instances.
+- Login limits: 8 attempts per normalized email and 60 attempts per observed socket peer per 15 minutes.
+- Registration limits: 3 attempts per normalized email and 10 attempts per observed socket peer per hour.
+- Identifiers are HMACed with the existing AUTH_EMAIL_INDEX_KEY before being written to Redis; raw email addresses and IP addresses are not stored in Redis keys.
+- The limiter fails closed with HTTP 503 if enabled but Redis is missing or unavailable. Exceeded limits return HTTP 429 and Retry-After.
+- Production requires a TLS Redis URL (rediss://). AUTH_RATE_LIMIT_ENABLED defaults to false until a shared Redis-compatible service has been provisioned and verified.
+- The application uses the socket peer address and deliberately does not trust arbitrary X-Forwarded-For values. Confirm what Code Engine exposes as the peer address before relying on the peer-based threshold. If Code Engine presents a shared ingress peer, tune or move IP limiting to a trusted edge gateway.
+- Provision a private Redis-compatible service, store REDIS_URL as a Code Engine secret reference, set APP_ENV=production and AUTH_RATE_LIMIT_ENABLED=true, then verify limits across more than one application instance before public use.
