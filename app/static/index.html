@@ -21,39 +21,49 @@
   </header>
 
   <main class="page">
-    <section id="login-panel" class="login-wrap">
+    <section id="login-shell" class="login-wrap">
       <div class="login-copy">
-        <p class="eyebrow">YOUR FINANCIAL WORKSPACE</p>
-        <h1>Understand your money with verified financial data.</h1>
-        <p>Sign in to work with your accounts, transactions, budgets and financial goals.</p>
-        <p class="privacy-note">Your access token is held in memory in this browser tab. It is not saved in browser storage.</p>
+        <div class="login-brandline"><span class="login-brand-icon">FA</span><span>FINANCIAL ADVISOR</span></div>
+        <p class="eyebrow">YOUR MONEY, CLEARER</p>
+        <h1>Make confident decisions with a clearer view of your finances.</h1>
+        <p class="login-intro">One private workspace for your accounts, spending, budgets and financial goals, built around your verified financial data.</p>
+        <div class="login-benefits">
+          <div><span class="benefit-icon">01</span><span><strong>See the full picture</strong><small>Bring your financial activity into one place.</small></span></div>
+          <div><span class="benefit-icon">02</span><span><strong>Stay in control</strong><small>Review transactions before anything is saved.</small></span></div>
+          <div><span class="benefit-icon">03</span><span><strong>Keep your data private</strong><small>Your sign-in token stays in this browser tab.</small></span></div>
+        </div>
+        <p class="privacy-note">Private access. Your access token is held in memory in this browser tab and isn't saved in browser storage.</p>
       </div>
-      <div id="login-panel" class="panel login-panel">
-        <form id="login-form">
-          <h2>Sign in</h2>
-          <label for="email">Email address</label>
-          <input id="email" name="email" type="email" autocomplete="username" required>
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required>
-          <button class="button button-primary full-width" type="submit">Sign in</button>
-          <p id="login-message" class="form-message" role="status"></p>
-          <button id="forgot-password-button" class="text-button" type="button">Forgot password?</button>
-          <button id="resend-verification-button" class="text-button" type="button">Resend verification email</button>
+      <div class="auth-card-shell">
+        <div id="login-panel" class="panel login-panel auth-card">
+          <div class="auth-heading"><p class="eyebrow">WELCOME BACK</p><h2>Sign in to your workspace</h2><p class="muted">Enter your account details to continue.</p></div>
+          <form id="login-form">
+            <label for="email">Email address</label>
+            <input id="email" name="email" type="email" autocomplete="username" placeholder="you@example.com" required>
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+            <button class="button button-primary full-width auth-submit" type="submit">Sign in <span aria-hidden="true">→</span></button>
+            <p id="login-message" class="form-message auth-message" role="status" aria-live="polite"></p>
+            <div class="auth-links"><button id="forgot-password-button" class="text-button" type="button">Forgot password?</button><button id="resend-verification-button" class="text-button" type="button">Resend verification email</button></div>
+          </form>
+          <div class="auth-divider"><span>NEW TO FINANCIAL ADVISOR?</span></div>
+          <p class="small account-switch">Don't have an account? <button id="show-register" class="text-button" type="button">Create account</button></p>
+        </div>
+        <form id="register-panel" class="panel login-panel auth-card hidden">
+          <div class="auth-heading"><p class="eyebrow">PRIVATE ACCOUNT ACCESS</p><h2>Create your account</h2><p class="muted">Set up your personal finance workspace.</p></div>
+          <label for="register-email">Email address</label>
+          <input id="register-email" type="email" autocomplete="username" placeholder="you@example.com" required>
+          <label for="register-password">Password</label>
+          <input id="register-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" placeholder="At least 12 characters" required>
+          <p class="field-hint">Use 12 to 128 characters. Choose a unique password.</p>
+          <label for="registration-invite">Invitation code</label>
+          <input id="registration-invite" type="password" autocomplete="off" placeholder="Enter your invitation code" required>
+          <button class="button button-primary full-width auth-submit" type="submit">Create account <span aria-hidden="true">→</span></button>
+          <p id="register-message" class="form-message auth-message" role="status" aria-live="polite"></p>
+          <div class="auth-divider"><span>ALREADY REGISTERED?</span></div>
+          <p class="small account-switch">Have an account? <button id="back-to-login" class="text-button" type="button">Sign in</button></p>
         </form>
-        <p class="small muted account-switch">New here? <button id="show-register" class="text-button" type="button">Create an account</button></p>
       </div>
-      <form id="register-panel" class="panel login-panel hidden">
-        <h2>Create an account</h2>
-        <label for="register-email">Email address</label>
-        <input id="register-email" type="email" autocomplete="username" required>
-        <label for="register-password">Password (at least 12 characters)</label>
-        <input id="register-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
-        <label for="registration-invite">Invitation code</label>
-        <input id="registration-invite" type="password" autocomplete="off" required>
-        <button class="button button-primary full-width" type="submit">Create account</button>
-        <p id="register-message" class="form-message" role="status"></p>
-        <p class="small muted account-switch">Already have an account? <button id="back-to-login" class="text-button" type="button">Sign in</button></p>
-      </form>
     </section>
 
     <section id="workspace" class="workspace hidden">

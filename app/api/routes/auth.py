@@ -389,7 +389,7 @@ def resend_verification(payload: PasswordResetRequest) -> AuthenticationActionRe
             public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
             if not public_url.startswith("https://"):
                 raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
-            link = f"{public_url}/app?verify_token={token}"
+            link = f"{public_url}/app#verify_token={token}"
             send_account_email(recipient=user["email"], subject="Verify your Financial Advisor email", text_body=f"Verify your email within 60 minutes: {link}", html_body=f'<p><a href="{link}">Verify email address</a></p><p>This link expires in 60 minutes.</p>')  # noqa: E501
     except (EmailConfigurationError, EmailDeliveryError) as exc:
         raise HTTPException(status_code=503, detail="Verification email is not available.") from exc
