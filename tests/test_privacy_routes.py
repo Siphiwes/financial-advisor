@@ -37,6 +37,7 @@ def test_privacy_export_remains_available_when_finance_writes_are_disabled(
 ) -> None:
     monkeypatch.setenv("FINANCIAL_DATA_ENABLED", "false")
     app.dependency_overrides[get_current_user] = _user
+    monkeypatch.setattr(finance, "record_sensitive_access", lambda *args: None)
     monkeypatch.setattr(
         finance,
         "export_user_data",
