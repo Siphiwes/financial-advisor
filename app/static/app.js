@@ -419,7 +419,12 @@
         "muted small"
       );
       card.append(counts);
-      card.append(el("p", "Completed: " + (item.completed_at || "Not completed"), "muted small"));
+      card.append(el(
+        "p",
+        "Started: " + (item.started_at || item.created_at || "Not available") +
+        " · Completed: " + (item.completed_at || "Not completed"),
+        "muted small"
+      ));
       target.append(card);
     });
   }
