@@ -58,9 +58,14 @@ def _record_view(document: dict) -> dict:
 
 def _read_record(user_id: str, collection: str, record_id: str) -> dict:
     client, database = _connection()
-    document = get_user_scoped_document(
-        client, database, user_id, collection, record_id
-    )
+    try:
+        document = get_user_scoped_document(
+            client, database, user_id, collection, record_id
+        )
+    except ValueError as exc:
+        raise FinanceRecordNotFoundError(
+            "The requested record was not found."
+        ) from exc
     if document is None:
         raise FinanceRecordNotFoundError("The requested record was not found.")
     return document
@@ -128,6 +133,16 @@ def get_financial_account(user_id: str, account_id: str, *, active: bool = True)
     return account
 
 def create_financial_account(user: AuthenticatedUser, payload) -> dict:
+    existing_accounts = list_financial_accounts(user)
+    if any(
+        account["institution"] == payload.institution
+        and account["account_last_four"] == payload.account_last_four
+        for account in existing_accounts
+    ):
+        raise FinanceValidationError(
+            "This FNB account is already linked to your profile."
+        )
+
     data = {
         "institution": payload.institution,
         "display_name": payload.display_name.strip(),
@@ -647,6 +662,8 @@ def create_category(user: AuthenticatedUser, name: str, kind: str) -> dict:
 
 def update_category(user: AuthenticatedUser, category_id: str, changes: dict) -> dict:
     """Update or deactivate a user-owned category."""
+    if category_id.startswith("system-"):
+        raise FinanceValidationError("Built-in categories cannot be changed.")
     document = _read_record(user.id, "categories", category_id)
     data = dict(document["data"])
     if data.get("is_system"):
