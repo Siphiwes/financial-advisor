@@ -9,6 +9,8 @@ An AI-powered personal finance application for South African users. It is design
 - Same-origin web workspace served at /app.
 - IBM Cloudant IAM connection and protected connectivity diagnostics.
 - Invite-only registration, Argon2id password hashing and short-lived JWT access tokens.
+- One-time email verification and password recovery using expiring, single-use Cloudant-backed token digests.
+- Authenticated TLS SMTP email delivery, configured for personal Gmail through an IBM Code Engine secret.
 - Password change and all-session revocation after current-password verification.
 - Authenticated current-user endpoint and user-scoped Cloudant document helpers.
 - FNB South Africa CSV parser and authenticated preview endpoint (20 MB limit).
@@ -33,7 +35,7 @@ An AI-powered personal finance application for South African users. It is design
 Persistent finance routes require FINANCIAL_DATA_ENABLED=true. AI routes additionally require FINANCIAL_AI_ENABLED=true and valid watsonx.ai settings. Both flags default to false. Keep them disabled until the release safeguards are complete.
 
 **Still to complete before broader production use**
-- Email verification, password reset, MFA, account recovery and distributed rate limiting.
+- MFA for this application and distributed rate limiting.
 - A documented retention schedule and a tested, automated Cloudant backup/restore procedure.
 - Full audit coverage for sensitive reads, exports, administrative actions and deletion, plus operational alerting for audit-write failures.
 - Application/edge request limits, monitoring, incident response and credential rotation procedures.
@@ -123,6 +125,6 @@ The container runs as a non-root user. The Dockerfile copies the same-origin fro
 
 - Never put API keys, passwords, tokens, bank statements or real financial data in GitHub, commits, tests or logs.
 - Persistent financial data and AI features are disabled by default.
-- Keep both disabled until backups, restore, retention, deletion, audit coverage, monitoring and applicable privacy review are complete.
+- Keep financial data disabled until the owner has reviewed the backup/restore limitation, validated a real FNB export, and accepted the remaining personal-use risks. Keep AI disabled until watsonx.ai is configured and validated.
 - Preserve original imported transaction fields when users make corrections.
 - Financial amounts must be calculated using exact decimal arithmetic. AI must not invent balances, transactions or financial metrics.
