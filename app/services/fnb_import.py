@@ -93,10 +93,20 @@ def confirm_fnb_csv_import(
     statement: FNBStatement = parse_fnb_csv(content)
     if not 1 <= len(statement.transactions) <= MAX_IMPORT_ROWS:
         raise ValueError("The FNB statement transaction count is outside the supported range.")
+    if any(not transaction.description.strip() for transaction in statement.transactions):
+        raise ValueError("An FNB transaction row has no description.")
 
     account_id = account_document["record_id"]
     account_data = account_document["data"]
     currency = account_data["currency"]
+    if account_data.get("institution") != "FNB":
+        raise ValueError("The selected account is not an FNB account.")
+    if (
+        statement.account_last_four
+        and account_data.get("account_last_four")
+        and statement.account_last_four != account_data["account_last_four"]
+    ):
+        raise ValueError("The statement account does not match the selected financial account.")
     content_digest = hashlib.sha256(content).hexdigest()
     import_id = _import_record_id(user_id, account_id, content_digest)
 
@@ -169,9 +179,6 @@ def confirm_fnb_csv_import(
     occurrence_counts: Counter[str] = Counter()
     records: list[tuple[str, dict]] = []
     for transaction in statement.transactions:
-        if not transaction.description.strip():
-            raise ValueError("An FNB transaction row has no description.")
-
         data = {
             "account_id": account_id,
             "import_id": import_id,
