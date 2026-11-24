@@ -18,7 +18,7 @@ An AI-powered personal finance application for South African users. It is design
 - Budget progress, goal contributions, recurring-payment candidates and per-currency summaries.
 - IBM watsonx.ai chat connector using IBM IAM authentication.
 - Explicit per-request AI consent. Only the user's question and aggregated financial totals are sent to watsonx.ai; raw transaction descriptions, references and account IDs are excluded.
-- GitHub Actions for frontend JavaScript syntax checks, strict Ruff linting and pytest.
+- GitHub Actions for frontend JavaScript syntax checks, strict Ruff linting, pytest, production Docker build and container smoke tests.
 
 **Implemented but gated**
 - Financial account and transaction storage endpoints.
