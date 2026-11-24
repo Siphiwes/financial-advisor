@@ -1013,8 +1013,9 @@ def export_user_data(user: AuthenticatedUser) -> dict:
 def delete_user_data_and_account(user: AuthenticatedUser, current_password: str) -> dict:
     """Delete all user-owned finance documents and the Cloudant login document.
 
-    The account document is deleted last. If a Cloudant operation fails, the
-    account remains active so the user can authenticate and retry deletion.
+    The account is marked as deleting before its records are removed. Normal
+    authenticated operations are blocked during the process; the dedicated
+    deletion dependency allows the user to retry after a provider failure.
     """
     client, database = _connection()
     user_document = get_user_by_email(client, database, user.email)
@@ -1044,6 +1045,54 @@ def delete_user_data_and_account(user: AuthenticatedUser, current_password: str)
             offset=0,
         )
         if has_more:
+            raise FinanceValidationError(
+                "This account contains more than 10,000 records in one collection. "
+                "Contact support to complete a controlled deletion."
+            )
+        documents_by_collection[collection] = documents
+
+    # Mark the account as deleting so new normal authenticated requests are
+    # rejected while this operation runs. The deletion route remains retryable.
+    if user_document.get("is_deleting") is not True:
+        deleting_document = dict(user_document)
+        deleting_document["is_deleting"] = True
+        deleting_document["updated_at"] = _now()
+        lock_result = client.put_document(
+            db=database,
+            doc_id=deleting_document["_id"],
+            document=deleting_document,
+        ).get_result()
+        if lock_result.get("ok") is not True:
+            raise RuntimeError("Cloudant did not confirm the account deletion lock.")
+        user_document["_rev"] = lock_result.get("rev")
+        user_document["is_deleting"] = True
+
+    # Re-read after the lock to include any documents written during the
+    # initial preflight enumeration.
+    documents_by_collection = {}
+    for collection in _PRIVACY_COLLECTIONS:
+        documents, has_more = list_user_scoped_documents(
+            client,
+            database,
+            user.id,
+            collection,
+            limit=10_000,
+            offset=0,
+        )
+        if has_more:
+            # Remove the temporary lock so the user can contact support and
+            # continue using the account until a controlled large deletion.
+            unlocked_document = dict(user_document)
+            unlocked_document["is_deleting"] = False
+            unlocked_document["updated_at"] = _now()
+            unlock_result = client.put_document(
+                db=database,
+                doc_id=unlocked_document["_id"],
+                document=unlocked_document,
+            ).get_result()
+            if unlock_result.get("ok") is True:
+                user_document["is_deleting"] = False
+                user_document["_rev"] = unlock_result.get("rev")
             raise FinanceValidationError(
                 "This account contains more than 10,000 records in one collection. "
                 "Contact support to complete a controlled deletion."
