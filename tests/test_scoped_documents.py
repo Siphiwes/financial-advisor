@@ -27,7 +27,6 @@ class FakeCloudantClient:
         }
         return FakeResponse({"ok": True, "id": document["_id"]})
 
-
     def get_document(self, *, db: str, doc_id: str) -> FakeResponse:
         if doc_id not in self.documents:
             error = RuntimeError("not found")
