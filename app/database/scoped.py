@@ -1,12 +1,15 @@
 """Cloudant helpers that namespace every finance record by its owner."""
 
 import re
+from threading import Lock
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 _COLLECTION_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,31}$")
 _RESERVED_COLLECTIONS = {"user", "users", "system"}
 MAX_QUERY_LIMIT = 500
+_INDEX_LOCK = Lock()
+_INDEXED_DATABASES: set[str] = set()
 
 
 class UserScopedDocumentNotFoundError(LookupError):
@@ -146,6 +149,7 @@ def list_user_scoped_documents(
             raise ValueError("Query filters cannot override document ownership.")
         selector.update(filters)
 
+    ensure_user_scope_indexes(client, database)
     result = client.post_find(
         db=database,
         selector=selector,
@@ -223,13 +227,76 @@ def delete_user_scoped_document(
     return result.get("ok") is True
 
 
-def ensure_user_scope_index(client, database: str) -> dict:
-    """Create the JSON index required for efficient user-scoped queries."""
-    return client.post_index(
-        db=database,
-        ddoc="finance_user_scope",
-        name="by_user_type",
-        type="json",
-        index={"fields": ["user_id", "type"]},
-        partitioned=False,
-    ).get_result()
+def bulk_create_user_scoped_documents(
+    client,
+    database: str,
+    user_id: str,
+    collection: str,
+    records: list[tuple[str, dict]],
+) -> dict[str, int]:
+    """Create deterministic user-scoped records in Cloudant bulk batches."""
+    normalized_user_id = _validate_scope(user_id, collection)
+    now = datetime.now(UTC).isoformat()
+    created_count = 0
+    conflict_count = 0
+    batch_size = 200
+
+    for start in range(0, len(records), batch_size):
+        batch = records[start : start + batch_size]
+        documents = []
+        for record_id, data in batch:
+            if not isinstance(data, dict):
+                raise ValueError("Document data must be an object.")
+            documents.append(
+                {
+                    "_id": _document_id(user_id, collection, record_id),
+                    "type": collection,
+                    "user_id": user_id,
+                    "record_id": record_id,
+                    "data": data,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+
+        results = client.post_bulk_docs(
+            db=database,
+            bulk_docs={"docs": documents},
+        ).get_result()
+        if len(results) != len(documents):
+            raise RuntimeError("Cloudant returned an incomplete bulk-write result.")
+
+        for result in results:
+            if result.get("ok") is True or result.get("rev"):
+                created_count += 1
+            elif result.get("error") == "conflict":
+                conflict_count += 1
+            else:
+                raise RuntimeError("Cloudant could not save every imported record.")
+
+    return {"created": created_count, "conflicts": conflict_count}
+
+
+def ensure_user_scope_indexes(client, database: str) -> None:
+    """Create indexes for common owner-scoped collection and transaction queries."""
+    with _INDEX_LOCK:
+        if database in _INDEXED_DATABASES:
+            return
+
+        indexes = (
+            ("by_user_type", ["user_id", "type"]),
+            ("by_transaction_date", ["user_id", "type", "data.transaction_date"]),
+            ("by_transaction_account", ["user_id", "type", "data.account_id"]),
+            ("by_transaction_category", ["user_id", "type", "data.category_id"]),
+            ("by_transaction_import", ["user_id", "type", "data.import_id"]),
+        )
+        for name, fields in indexes:
+            client.post_index(
+                db=database,
+                ddoc="finance_user_scope",
+                name=name,
+                type="json",
+                index={"fields": fields},
+                partitioned=False,
+            ).get_result()
+        _INDEXED_DATABASES.add(database)
