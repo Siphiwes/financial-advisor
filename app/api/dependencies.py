@@ -79,3 +79,21 @@ def require_financial_data_enabled(
             status_code=503,
             detail="Financial data storage is disabled until release safeguards are completed.",
         )
+
+
+
+def require_financial_ai_enabled(
+    _current_user: Annotated[
+        AuthenticatedUser,
+        Depends(require_financial_data_enabled),
+    ],
+) -> None:
+    """Require the finance feature gate and a separate AI feature switch."""
+    enabled = (
+        get_setting("FINANCIAL_AI_ENABLED", "false") or "false"
+    ).strip().casefold()
+    if enabled not in {"1", "true", "yes", "on"}:
+        raise HTTPException(
+            status_code=503,
+            detail="The AI financial advisor is not enabled.",
+        )
