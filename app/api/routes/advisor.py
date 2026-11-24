@@ -6,14 +6,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_current_user, require_financial_ai_enabled
-from app.schemas.advisor import AdvisorChatRequest, AdvisorChatResponse
-from app.schemas.auth import AuthenticatedUser
-from app.services import finance
 from app.integrations.watsonx import (
     WatsonxConfigurationError,
     WatsonxProviderError,
     ask_financial_advisor,
 )
+from app.schemas.advisor import AdvisorChatRequest, AdvisorChatResponse
+from app.schemas.auth import AuthenticatedUser
+from app.services import finance
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
