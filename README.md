@@ -9,33 +9,37 @@ An AI-powered personal finance application for South African users. It is design
 - Same-origin web workspace served at /app.
 - IBM Cloudant IAM connection and protected connectivity diagnostics.
 - Invite-only registration, Argon2id password hashing and short-lived JWT access tokens.
+- Password change and all-session revocation after current-password verification.
 - Authenticated current-user endpoint and user-scoped Cloudant document helpers.
 - FNB South Africa CSV parser and authenticated preview endpoint (20 MB limit).
 - Financial account, transaction, category, budget and goal API routes.
-- Transaction correction history and deterministic financial summaries.
+- Transaction correction history, soft deletion and deterministic financial summaries.
 - Explicit FNB import confirmation, account matching and transaction-level duplicate detection.
 - Import history metadata. The original uploaded statement is not retained in Cloudant.
 - Budget progress, goal contributions, recurring-payment candidates and per-currency summaries.
+- User data export and password-confirmed account/data deletion, both with a 10,000-record-per-collection safety bound.
+- Privacy audit-event listing and audit records for selected create, update, delete and import operations.
 - IBM watsonx.ai chat connector using IBM IAM authentication.
-- Explicit per-request AI consent. Only the user's question and aggregated financial totals are sent to watsonx.ai; raw transaction descriptions, references and account IDs are excluded.
+- Explicit per-request AI consent for financial summaries and a separately consented, non-automatic category suggestion.
 - GitHub Actions for frontend JavaScript syntax checks, strict Ruff linting, pytest, production Docker build and container smoke tests.
+- Weekly Dependabot checks for Python packages and GitHub Actions.
 
 **Implemented but gated**
 - Financial account and transaction storage endpoints.
 - Budget and goal storage endpoints.
 - Confirmed FNB statement import and import history.
-- watsonx.ai advisor chat.
+- watsonx.ai advisor chat and transaction category suggestions.
 
-Persistent finance routes require FINANCIAL_DATA_ENABLED=true. AI chat additionally requires FINANCIAL_AI_ENABLED=true and valid watsonx.ai settings. Both flags default to false. Keep them disabled until the release safeguards are complete.
+Persistent finance routes require FINANCIAL_DATA_ENABLED=true. AI routes additionally require FINANCIAL_AI_ENABLED=true and valid watsonx.ai settings. Both flags default to false. Keep them disabled until the release safeguards are complete.
 
-**Still to implement before a complete first release**
-- Production identity lifecycle: email verification, password reset, MFA, account recovery, rate limiting and session revocation.
-- User-facing export, deletion and retention workflows.
-- Tested Cloudant backup and restore, audit logging and operational monitoring.
-- Transaction categorisation assistance, richer analytics and reports.
+**Still to complete before broader production use**
+- Email verification, password reset, MFA, account recovery and distributed rate limiting.
+- A documented retention schedule and a tested, automated Cloudant backup/restore procedure.
+- Full audit coverage for sensitive reads, exports, administrative actions and deletion, plus operational alerting for audit-write failures.
+- Application/edge request limits, monitoring, incident response and credential rotation procedures.
 - watsonx.ai project/model configuration and live integration validation.
-- Automated financial-data evaluation and AI quality/safety evaluation.
-- Production privacy/security review and release runbook.
+- Privacy/security review, including the Frankfurt hosting region and cross-border processing.
+- Validation against an actual FNB CSV exported by the account holder before relying on the import.
 
 Do not treat gated or planned components as available for general use. Do not enable persistent financial data until the release checklist is signed off.
 
@@ -51,16 +55,7 @@ The architecture is a modular monolith. Separate services or Kubernetes will onl
 
 ## Web application
 
-Open /app on the deployed service. The workspace provides:
-- Sign-in
-- FNB account metadata
-- FNB CSV preview and consent-based import
-- Transaction history and correction
-- Categories
-- Budgets and spending progress
-- Financial goals and contribution tracking
-- Financial summaries and recurring-payment candidates
-- AI advisor chat, once the finance and AI feature gates are enabled
+Open /app on the deployed service. The workspace provides sign-in, FNB account metadata, FNB CSV preview and consent-based import, transaction history and correction, categories, budgets, goals, financial summaries, recurring-payment candidates, AI consent, user data export and account deletion.
 
 The bearer access token is kept in page memory only. It is cleared when the page is reloaded or signed out. It is not stored in localStorage or sessionStorage.
 
@@ -73,17 +68,9 @@ The bearer access token is kept in page memory only. It is cleared when the page
 5. Start the API with: uvicorn main:app --reload --host 127.0.0.1 --port 8080
 6. Open http://127.0.0.1:8080/app for the web workspace and http://127.0.0.1:8080/docs for the API documentation.
 
-## Authentication API
-
-- POST /auth/register: invite-only registration. Requires X-Registration-Invite.
-- POST /auth/token: exchange email and password for a short-lived bearer token.
-- GET /auth/me: return the authenticated account. Requires Authorization: Bearer token.
-
-Required server-side settings: JWT_SECRET_KEY, AUTH_EMAIL_INDEX_KEY, and (to enable registration) REGISTRATION_INVITE_CODE. Keep cryptographic keys independent and at least 32 bytes long. Do not put their values in source control.
-
 ## Finance API
 
-All routes below require authentication. Persistent finance routes also require FINANCIAL_DATA_ENABLED=true.
+All routes require authentication. Persistent finance routes also require FINANCIAL_DATA_ENABLED=true.
 
 - /api/v1/accounts: create and manage linked-account metadata. The application does not request FNB online banking credentials.
 - /api/v1/transactions: create, retrieve, update, filter and soft-delete transactions.
@@ -98,11 +85,19 @@ All routes below require authentication. Persistent finance routes also require 
 - POST /imports/fnb/csv/confirm: explicitly confirm and persist a validated FNB CSV against a selected, user-owned FNB account.
 - /imports: view import metadata and status.
 
-FNB imports require the account's last four digits to match the statement. The import process stores a file hash and import metadata, not the original statement. Stable transaction identifiers prevent the same transaction from being stored again when statements overlap.
+FNB imports require the account's last four digits to match the statement. The import process stores a file hash and import metadata, not the original statement. Stable transaction identifiers prevent the same transaction from being stored again when statements overlap. A completed import is bound to one user and one FNB account.
+
+## Privacy controls
+
+- GET /api/v1/privacy/export exports the user's application records, excluding original statement files.
+- DELETE /api/v1/privacy/data requires the current password and removes the user's financial records and login account.
+- Both export and deletion stop with a clear limit if a collection contains more than 10,000 records.
+- GET /api/v1/privacy/audit lists available user-scoped audit events. The current audit trail covers selected data changes and imports, not every read or export.
 
 ## AI advisor
 
-POST /api/v1/advisor/chat requires both feature gates and an explicit consent_to_share_summary=true field. It sends the question and a user-specific aggregate summary to IBM watsonx.ai. It does not send raw transaction rows, descriptions, references or account IDs. Questions and responses are not persisted by the current chat route.
+POST /api/v1/advisor/chat requires both feature gates and an explicit consent_to_share_summary=true field. It sends the question and a user-specific aggregate summary to IBM watsonx.ai. It does not send raw transaction rows, descriptions, references or account IDs.
+The transaction-category suggestion route requires separate consent for one selected transaction. It sends that transaction's date, description, amount and currency plus active category names/types. The suggestion is validated and is not applied automatically.
 
 The following IBM settings are required:
 - WATSONX_APIKEY (store as a Code Engine secret)
@@ -115,7 +110,7 @@ For the Frankfurt region, the current default service URL is https://eu-de.ml.cl
 
 ## Tests and code quality
 
-Run tests with pytest and lint with ruff check . GitHub Actions validates the frontend JavaScript syntax, runs strict Ruff checks and executes pytest. Automated fixtures must not contain invented financial histories or example transaction amounts.
+Run tests with pytest and lint with ruff check . GitHub Actions validates frontend syntax, runs strict Ruff checks and executes pytest, then builds the production Docker image and smoke-tests the container. Automated fixtures must not contain invented financial histories or example transaction amounts.
 
 ## Container build
 
@@ -128,6 +123,6 @@ The container runs as a non-root user. The Dockerfile copies the same-origin fro
 
 - Never put API keys, passwords, tokens, bank statements or real financial data in GitHub, commits, tests or logs.
 - Persistent financial data and AI features are disabled by default.
-- Keep both disabled until user consent, ownership isolation, backup/restore, retention, deletion, audit logging and applicable privacy review are complete.
+- Keep both disabled until backups, restore, retention, deletion, audit coverage, monitoring and applicable privacy review are complete.
 - Preserve original imported transaction fields when users make corrections.
 - Financial amounts must be calculated using exact decimal arithmetic. AI must not invent balances, transactions or financial metrics.
