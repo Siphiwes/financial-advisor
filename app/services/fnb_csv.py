@@ -221,9 +221,13 @@ def parse_fnb_csv(content: bytes) -> FNBStatement:
         if not row or not any(cell.strip() for cell in row):
             continue
 
-        def value_for(field: str) -> str:
+        def value_for(field: str, current_row: list[str] = row) -> str:
             index = columns.get(field)
-            return row[index].strip() if index is not None and index < len(row) else ""
+            return (
+                current_row[index].strip()
+                if index is not None and index < len(current_row)
+                else ""
+            )
 
         try:
             effective_date = _parse_date(value_for("effective_date"))
