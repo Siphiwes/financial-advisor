@@ -252,7 +252,15 @@ class RecurringPaymentCandidate(BaseModel):
     confidence: Literal["low", "medium"]
 
 
-DebtType = Literal["personal_loan", "credit_card", "vehicle_finance", "home_loan", "student_loan", "overdraft", "other"]
+DebtType = Literal[
+    "personal_loan",
+    "credit_card",
+    "vehicle_finance",
+    "home_loan",
+    "student_loan",
+    "overdraft",
+    "other",
+]
 DebtStatus = Literal["active", "paid"]
 
 
@@ -263,7 +271,9 @@ class DebtCreate(BaseModel):
     original_amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
     current_balance: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
     monthly_payment: Decimal = Field(default=Decimal("0"), ge=0, max_digits=18, decimal_places=2)
-    interest_rate: Decimal | None = Field(default=None, ge=0, le=100, max_digits=6, decimal_places=3)
+    interest_rate: Decimal | None = Field(
+        default=None, ge=0, le=100, max_digits=6, decimal_places=3
+    )
     currency: str = Field(default="ZAR", pattern=r"^[A-Z]{3}$")
     opened_date: date | None = None
     due_date: date | None = None
