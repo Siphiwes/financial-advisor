@@ -1,24 +1,68 @@
-# Data model planning
+# Financial data model
 
-This document records design areas to settle before implementing persistence. It is not a deployed schema.
+This document describes the current Cloudant document model. It is not a claim that production retention, backup or compliance controls are complete.
 
-## Planned concepts
+## Ownership and document IDs
 
-- User: identity and preferences. Authentication provider and user identifier strategy are still to be selected.
-- Financial account: a user-owned account representation. Avoid storing bank login credentials.
-- Transaction: amount, currency, transaction date, description, merchant, category, account reference, source/import reference and review status.
-- Category: system category plus optional user-defined categories and correction history.
-- Budget: period, category or envelope, planned amount and currency.
-- Financial goal: target amount, target date, contribution history and status.
-- Import batch: source, processing status, file reference, deduplication metadata and audit timestamps.
+Each financial document ID uses this namespace:
 
-## Financial data rules
+finance:{normalized-user-uuid}:{collection}:{record-uuid}
 
-- Store monetary values as integer minor units or exact decimal values, never binary floating point.
-- Store currency explicitly using ISO 4217 codes. The initial user market is South Africa, but do not assume every transaction is ZAR.
-- Preserve original source values where needed for audit and user correction.
-- Store timestamps consistently in UTC and preserve the transaction's local date where relevant.
-- Define ownership and access checks before any user data is persisted.
-- Define duplicate detection and correction history before bulk imports are enabled.
+The authenticated user ID is derived from the validated access token and Cloudant user record. Finance API request bodies do not accept an owner ID. Reads, writes and deletes are performed within the authenticated user's namespace.
 
-A detailed Cloudant document design, indexes and partitioning strategy will be decided with the first persistence feature, based on actual query patterns.
+## Collections
+
+### Accounts
+
+- Institution (initially FNB)
+- User-selected display name
+- Account type
+- ISO 4217 currency
+- Last four account-number digits only
+- Active/inactive status
+
+Online banking passwords, PINs, card security codes and full account numbers are not stored.
+
+### Transactions
+
+- Account reference
+- Transaction date
+- Original description and reference
+- Signed amount (positive inflow, negative outflow)
+- Currency
+- Service fee and balance-after values where supplied by the bank
+- User category and notes
+- Source (manual or fnb_csv)
+- Import ID, where applicable
+- Original imported fields
+- Correction history
+- Soft-deletion status
+
+Monetary values are stored as decimal strings and parsed into Decimal for calculations. Never use binary floating-point for money.
+
+### Import batches
+
+- Source and selected account ID
+- SHA-256 hash of the uploaded file
+- Processing status
+- Statement date, where supplied
+- Parsed transaction count, imported count and duplicate count
+- Started and completed timestamps
+
+The raw statement file is not persisted by the current import endpoint. The file hash is metadata, not a retrievable statement copy.
+
+### Categories, budgets and goals
+
+Categories include built-in values and user-defined values. Budgets record a category, currency, amount, period and date range. Goals record a target, currency, optional target date and user-entered saved amount.
+
+## FNB duplicate detection
+
+The import batch identifier is derived from the authenticated user, selected account and uploaded file hash. Transaction identifiers are deterministic hashes of the selected account and source transaction fields. Re-importing the same file can return the existing completed batch; overlapping statements skip transactions already present for that account.
+
+## Financial calculation rules
+
+- Currency is explicit for every account and transaction. Amounts in different currencies are never added together.
+- Income is represented by positive transaction amounts; expenses are negative.
+- The summary API returns income, expenses and net cash flow per currency.
+- Only expenses are grouped into category spending totals.
+- A bank balance is not inferred from an incomplete transaction range. The application may display a bank-provided balance-after value only where the statement supplies one.
