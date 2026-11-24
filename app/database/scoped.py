@@ -4,14 +4,11 @@ import re
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-
 _COLLECTION_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,31}$")
 _RESERVED_COLLECTIONS = {"user", "users", "system"}
 
-
 class UserScopedDocumentNotFoundError(LookupError):
     """Raised when a user-scoped record does not exist for the current user."""
-
 
 def _validate_scope(user_id: str, collection: str, record_id: str | None = None) -> str:
     """Validate identifiers before composing a Cloudant document ID."""
@@ -31,12 +28,10 @@ def _validate_scope(user_id: str, collection: str, record_id: str | None = None)
 
     return normalized_user_id
 
-
 def _document_id(user_id: str, collection: str, record_id: str) -> str:
     """Build a Cloudant ID that cannot address another user's namespace."""
     normalized_user_id = _validate_scope(user_id, collection, record_id)
     return f"finance:{normalized_user_id}:{collection}:{record_id}"
-
 
 def _is_not_found(error: Exception) -> bool:
     """Recognize a Cloudant HTTP 404 response."""
@@ -44,7 +39,6 @@ def _is_not_found(error: Exception) -> bool:
         getattr(error, "code", None) == 404
         or getattr(error, "status_code", None) == 404
     )
-
 
 def create_user_scoped_document(
     client,
@@ -73,7 +67,6 @@ def create_user_scoped_document(
         raise RuntimeError("Cloudant did not confirm record creation.")
     return record_id
 
-
 def get_user_scoped_document(
     client,
     database: str,
@@ -100,7 +93,6 @@ def get_user_scoped_document(
     ):
         return None
     return document
-
 
 def update_user_scoped_document(
     client,
@@ -130,7 +122,6 @@ def update_user_scoped_document(
         doc_id=document["_id"],
         document=document,
     ).get_result()
-
 
 def delete_user_scoped_document(
     client,

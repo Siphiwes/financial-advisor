@@ -12,7 +12,6 @@ from pwdlib import PasswordHash
 
 from app.core.config import get_setting
 
-
 JWT_ISSUER = "financial-advisor-api"
 JWT_AUDIENCE = "financial-advisor-api"
 JWT_ALGORITHM = "HS256"
@@ -20,10 +19,8 @@ JWT_ALGORITHM = "HS256"
 _password_hasher = PasswordHash.recommended()
 _DUMMY_PASSWORD_HASH = _password_hasher.hash(secrets.token_urlsafe(32))
 
-
 class SecurityConfigurationError(ValueError):
     """Raised when required authentication secrets or settings are invalid."""
-
 
 def _required_secret(name: str, minimum_bytes: int = 32) -> str:
     """Read a secret and enforce a minimum entropy-oriented length."""
@@ -36,7 +33,6 @@ def _required_secret(name: str, minimum_bytes: int = 32) -> str:
         )
     return value
 
-
 def get_email_lookup_document_id(email: str) -> str:
     """Create a deterministic, non-reversible Cloudant ID for an email address."""
     key = _required_secret("AUTH_EMAIL_INDEX_KEY")
@@ -48,11 +44,9 @@ def get_email_lookup_document_id(email: str) -> str:
     ).hexdigest()
     return f"user:email:{digest}"
 
-
 def hash_password(password: str) -> str:
     """Hash a password using the recommended Argon2 configuration."""
     return _password_hasher.hash(password)
-
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Verify a password without exposing malformed stored hashes."""
@@ -61,11 +55,9 @@ def verify_password(password: str, password_hash: str) -> bool:
     except Exception:
         return False
 
-
 def verify_dummy_password(password: str) -> None:
     """Perform a password-hash operation when an account lookup finds no user."""
     verify_password(password, _DUMMY_PASSWORD_HASH)
-
 
 def get_access_token_expiry_seconds() -> int:
     """Return the configured access-token lifetime, constrained to 5-60 minutes."""
@@ -83,14 +75,12 @@ def get_access_token_expiry_seconds() -> int:
         )
     return minutes * 60
 
-
 def _jwt_secret() -> str:
     """Return the signing secret after enforcing the supported algorithm."""
     configured_algorithm = get_setting("JWT_ALGORITHM", JWT_ALGORITHM)
     if configured_algorithm != JWT_ALGORITHM:
         raise SecurityConfigurationError("JWT_ALGORITHM must be HS256.")
     return _required_secret("JWT_SECRET_KEY")
-
 
 def create_access_token(
     user_id: str,
@@ -112,7 +102,6 @@ def create_access_token(
         "jti": uuid4().hex,
     }
     return jwt.encode(claims, _jwt_secret(), algorithm=JWT_ALGORITHM)
-
 
 def decode_access_token(token: str) -> dict[str, Any] | None:
     """Validate an access token's signature, issuer, audience and required claims."""

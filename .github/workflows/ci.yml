@@ -23,9 +23,6 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Run lint checks
-        run: |
-          ruff check --fix .
-          git diff -- app/core/security.py app/database/scoped.py app/schemas/auth.py
-          ruff check .
+        run: ruff check .
       - name: Run tests
         run: pytest
