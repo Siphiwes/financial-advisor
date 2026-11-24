@@ -8,7 +8,6 @@ from app.api.dependencies import get_current_user, require_financial_data_enable
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import FNBImportCommitResponse, ImportRecordResponse
 from app.schemas.imports import FNBImportPreview, FNBTransactionPreview
-from app.services.fnb_csv import MAX_CSV_BYTES, FNBCSVValidationError, parse_fnb_csv
 from app.services.finance import (
     FinanceRecordNotFoundError,
     FinanceValidationError,
@@ -16,10 +15,10 @@ from app.services.finance import (
     get_import_record,
     list_import_records,
 )
+from app.services.fnb_csv import MAX_CSV_BYTES, FNBCSVValidationError, parse_fnb_csv
 
 router = APIRouter(prefix="/imports", tags=["statement imports"])
 PREVIEW_TRANSACTION_LIMIT = 10
-
 
 @router.post(
     "/fnb/csv/preview",
@@ -83,8 +82,6 @@ async def preview_fnb_csv(
         ),
     )
 
-
-
 @router.post(
     "/fnb/csv/confirm",
     response_model=FNBImportCommitResponse,
@@ -141,7 +138,6 @@ async def confirm_fnb_csv_import(
     except FinanceValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-
 @router.get(
     "",
     response_model=list[ImportRecordResponse],
@@ -151,7 +147,6 @@ def read_import_history(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> list[dict]:
     return list_import_records(current_user)
-
 
 @router.get(
     "/{import_id}",
