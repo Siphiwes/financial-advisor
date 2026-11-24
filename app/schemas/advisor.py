@@ -34,3 +34,19 @@ class AdvisorChatResponse(BaseModel):
     model_id: str
     answer: str
     data_shared: list[str]
+
+
+
+class TransactionCategorySuggestionRequest(BaseModel):
+    transaction_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    consent_to_share_transaction: bool = False
+
+
+class TransactionCategorySuggestionResponse(BaseModel):
+    provider: Literal["IBM watsonx.ai"] = "IBM watsonx.ai"
+    model_id: str
+    transaction_id: str
+    suggested_category: str
+    explanation: str = Field(min_length=1, max_length=500)
+    applied: Literal[False] = False
+    data_shared: list[str]
