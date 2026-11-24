@@ -38,7 +38,7 @@ async def preview_fnb_csv(
         if len(content) > MAX_CSV_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="The uploaded CSV file exceeds the 5 MB limit.",
+                detail="The uploaded CSV file exceeds the 20 MB limit.",
             )
 
         statement = parse_fnb_csv(content)
