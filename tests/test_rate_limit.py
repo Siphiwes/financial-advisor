@@ -101,3 +101,18 @@ def test_rate_limit_fails_closed_when_redis_is_unavailable(monkeypatch) -> None:
             limit=8,
             window_seconds=900,
         )
+
+
+def test_production_rate_limit_rejects_plaintext_redis(monkeypatch) -> None:
+    monkeypatch.setenv("AUTH_RATE_LIMIT_ENABLED", "true")
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("REDIS_URL", "redis://redis.example.com:6379/0")
+    monkeypatch.setenv("AUTH_EMAIL_INDEX_KEY", "i" * 48)
+
+    with pytest.raises(rate_limit.RateLimitUnavailable):
+        rate_limit.enforce_rate_limit(
+            "login-email",
+            "account@example.com",
+            limit=8,
+            window_seconds=900,
+        )
