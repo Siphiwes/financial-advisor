@@ -37,6 +37,7 @@ def test_rejects_csv_above_20_mb_upload_limit() -> None:
 def test_fnb_csv_upload_limit_is_20_mb() -> None:
     assert MAX_CSV_BYTES == 20 * 1024 * 1024
 
+
 def test_accepts_fnb_export_date_header_before_transaction_rows() -> None:
     content = b"ACCOUNT TRANSACTION HISTORY\n\nDate,Amount,Balance,Description\n"
 
