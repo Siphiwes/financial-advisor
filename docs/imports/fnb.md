@@ -38,3 +38,6 @@ FNB also supports other transaction-history exports, including PDF, QIF, OFC and
 ## Before persistent import is enabled
 
 Persistent storage of real bank data remains disabled at this stage. Before that feature is added, implement and verify transaction-level ownership checks, duplicate handling, user consent, retention and deletion controls, backup and restore, audit logging, and safe exports. Validate the parser against an actual FNB CSV exported by the account holder before enabling storage.
+
+
+The account-last-four comparison is a consistency check only, not proof of account ownership. The user must select the intended account and confirm that the statement belongs to them before import. Accounts that share the same last four digits require particular care during selection.
