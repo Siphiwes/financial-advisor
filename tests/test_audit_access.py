@@ -10,7 +10,7 @@ from app.services import finance
 def _user() -> AuthenticatedUser:
     return AuthenticatedUser(
         id=str(uuid4()),
-        email="owner@example.invalid",
+        email="owner@example.com",
         created_at=datetime.now(UTC),
     )
 
