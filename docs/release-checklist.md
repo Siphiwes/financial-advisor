@@ -158,3 +158,18 @@ The application now supports Redis-backed authentication rate limits, but the li
 - [ ] Verify the app fails closed with HTTP 503 if the shared store is unavailable.
 
 Do not enable public registration or broader user access before this has been verified.
+
+
+## Transactional email service
+
+- [ ] Provision IBM Cloud Event Notifications in Frankfurt (eu-de) on a production-capable plan.
+- [ ] Verify a custom sender domain and publish its SPF/DKIM DNS records.
+- [ ] Complete SMTP authorization and create a dedicated SMTP configuration.
+- [ ] Configure a CBR rule for the Code Engine application's SMTP egress.
+- [ ] Store SMTP credentials in a protected IBM Cloud/Code Engine secret.
+- [ ] Configure the email environment variables from .env.example without committing secret values.
+- [ ] Send a real delivery verification email and verify SPF/DKIM alignment.
+- [ ] Keep EMAIL_ENABLED=false until delivery and the full account email lifecycle are reviewed.
+- [ ] Complete email verification, password recovery and MFA before enabling public registration or financial-data access.
+
+See docs/transactional-email.md for the implementation and provider setup requirements.
