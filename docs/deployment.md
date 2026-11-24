@@ -71,3 +71,8 @@ Before enabling the AI feature, verify the actual project ID, model ID, API vers
 9. Enable external AI processing only after per-request consent wording, data minimization and IBM project configuration have been verified.
 
 A successful container deployment does not prove that finance data safeguards are complete or that a real statement has been parsed correctly.
+
+
+## Release runbook
+
+Use docs/release-checklist.md before building the production image. It records the existing IBM Cloud resources, required secret references, feature-gate approvals, build steps, smoke checks, real FNB statement validation and rollback procedure.
