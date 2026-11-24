@@ -13,6 +13,7 @@ from app.core.rate_limit import (
     RateLimitUnavailable,
     enforce_rate_limit,
 )
+from app.integrations.email import EmailConfigurationError, EmailDeliveryError, send_account_email
 from app.core.security import (
     SecurityConfigurationError,
     create_access_token,
@@ -26,18 +27,26 @@ from app.database.cloudant import (
     get_database_name,
 )
 from app.database.users import (
+    InvalidActionTokenError,
     InvalidCurrentPasswordError,
     UserAlreadyExistsError,
     change_user_password,
+    consume_account_action_token,
+    issue_account_action_token,
     create_user,
     get_user_by_email,
     revoke_user_sessions,
+    reset_user_password,
+    verify_user_email,
 )
 from app.schemas.auth import (
+    AccountTokenRequest,
     AuthenticatedUser,
     AuthenticationActionResponse,
     LoginRequest,
     PasswordChangeRequest,
+    PasswordResetConfirmRequest,
+    PasswordResetRequest,
     RegisterRequest,
     SessionRevocationRequest,
     TokenResponse,
@@ -162,6 +171,28 @@ def register(
             status_code=502,
             detail="Account registration could not be completed.",
         ) from exc
+
+    try:
+        token = issue_account_action_token(
+            client, database, email=user_document["email"],
+            user_id=user_document["user_id"], action="verify_email", expires_minutes=60,
+        )
+        public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
+        if not public_url.startswith("https://"):
+            raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
+        link = f"{public_url}/app?verify_token={token}"
+        send_account_email(
+            recipient=user_document["email"],
+            subject="Verify your Financial Advisor email",
+            text_body=f"Verify your email within 60 minutes: {link}",
+            html_body=f'<p><a href="{link}">Verify email address</a></p><p>This link expires in 60 minutes.</p>',
+        )
+    except (EmailConfigurationError, EmailDeliveryError) as exc:
+        logger.warning("Registration email was not sent: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Account created, but verification email could not be sent. Configure email and request a new link.") from exc
+    except Exception as exc:
+        logger.warning("Registration verification setup failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="The verification email could not be prepared.") from exc
 
     return _public_user(user_document)
 
@@ -322,3 +353,74 @@ def revoke_sessions(
         message="All previously issued access tokens have been invalidated.",
         sessions_invalidated=True,
     )
+
+
+@router.post("/verify-email", response_model=AuthenticationActionResponse)
+def verify_email(payload: AccountTokenRequest) -> AuthenticationActionResponse:
+    """Consume a one-time verification link and verify the account email."""
+    client, database = _cloudant_connection()
+    try:
+        action = consume_account_action_token(client, database, raw_token=payload.token, expected_action="verify_email")
+        verify_user_email(client, database, action["user_id"], action["email"])
+    except InvalidActionTokenError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning("Email verification failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Email verification could not be completed.") from exc
+    return AuthenticationActionResponse(message="Email address verified. You can now sign in.")
+
+
+@router.post("/email/resend", response_model=AuthenticationActionResponse)
+def resend_verification(current_user: Annotated[AuthenticatedUser, Depends(get_current_user)]) -> AuthenticationActionResponse:
+    """Send a fresh verification link to the authenticated account."""
+    client, database = _cloudant_connection()
+    user = get_user_by_email(client, database, current_user.email)
+    if not user or user.get("email_verified") is True:
+        return AuthenticationActionResponse(message="If verification is required, a new link will be sent.")
+    try:
+        token = issue_account_action_token(client, database, email=current_user.email, user_id=current_user.id, action="verify_email", expires_minutes=60)
+        public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
+        if not public_url.startswith("https://"):
+            raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
+        link = f"{public_url}/app?verify_token={token}"
+        send_account_email(recipient=current_user.email, subject="Verify your Financial Advisor email", text_body=f"Verify your email within 60 minutes: {link}", html_body=f'<p><a href="{link}">Verify email address</a></p><p>This link expires in 60 minutes.</p>')
+    except (EmailConfigurationError, EmailDeliveryError) as exc:
+        raise HTTPException(status_code=503, detail="Verification email is not available.") from exc
+    return AuthenticationActionResponse(message="A new verification link has been sent.")
+
+
+@router.post("/password/reset/request", response_model=AuthenticationActionResponse)
+def request_password_reset(payload: PasswordResetRequest) -> AuthenticationActionResponse:
+    """Request a password reset without disclosing whether an account exists."""
+    client, database = _cloudant_connection()
+    try:
+        user = get_user_by_email(client, database, str(payload.email))
+        if user and user.get("is_active") is True:
+            token = issue_account_action_token(client, database, email=user["email"], user_id=user["user_id"], action="password_reset", expires_minutes=30)
+            public_url = (get_setting("APP_PUBLIC_URL") or "").rstrip("/")
+            if not public_url.startswith("https://"):
+                raise EmailConfigurationError("APP_PUBLIC_URL must be an HTTPS URL.")
+            link = f"{public_url}/app?reset_token={token}"
+            send_account_email(recipient=user["email"], subject="Reset your Financial Advisor password", text_body=f"Reset your password within 30 minutes: {link}", html_body=f'<p>Reset your password using the link below. It expires in 30 minutes.</p><p><a href="{link}">Reset password</a></p><p>If you did not request this, ignore this message.</p>')
+    except (EmailConfigurationError, EmailDeliveryError) as exc:
+        logger.warning("Password reset email unavailable: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Password recovery email is not configured.") from exc
+    except Exception as exc:
+        logger.warning("Password reset request failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="The password reset request could not be completed.") from exc
+    return AuthenticationActionResponse(message="If an active account matches that address, a password reset link will be sent.")
+
+
+@router.post("/password/reset/confirm", response_model=AuthenticationActionResponse)
+def confirm_password_reset(payload: PasswordResetConfirmRequest) -> AuthenticationActionResponse:
+    """Consume a one-time reset link and replace the account password."""
+    client, database = _cloudant_connection()
+    try:
+        action = consume_account_action_token(client, database, raw_token=payload.token, expected_action="password_reset")
+        reset_user_password(client, database, user_id=action["user_id"], email=action["email"], new_password=payload.new_password)
+    except InvalidActionTokenError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.warning("Password reset failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="The password could not be reset.") from exc
+    return AuthenticationActionResponse(message="Password reset successfully. Sign in using your new password.", sessions_invalidated=True)
