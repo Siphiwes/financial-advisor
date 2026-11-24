@@ -12,6 +12,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.diagnostics import router as diagnostics_router
 from app.api.routes.finance import router as finance_router
 from app.api.routes.imports import router as imports_router
+from app.api.routes.privacy import router as privacy_router
 
 # Loads a local .env file when present. Code Engine supplies deployed values
 # through environment variables and does not need a .env file in the image.
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
     application.include_router(imports_router)
     application.include_router(finance_router)
     application.include_router(advisor_router)
+    application.include_router(privacy_router)
     application.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
     @application.get("/app", tags=["web"])
