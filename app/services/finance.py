@@ -879,8 +879,6 @@ def create_debt(user: AuthenticatedUser, payload) -> dict:
     """Create a debt record and its first dated balance snapshot."""
     original = payload.original_amount
     balance = payload.current_balance
-    if balance > original:
-        raise FinanceValidationError("Outstanding balance cannot exceed the original debt amount.")
     if balance == 0 and payload.monthly_payment > 0:
         raise FinanceValidationError("A paid-off debt cannot have a monthly repayment.")
     data = {
@@ -913,8 +911,6 @@ def update_debt(user: AuthenticatedUser, debt_id: str, changes: dict) -> dict:
     data = dict(document["data"])
     old_balance = Decimal(str(data.get("current_balance", "0")))
     new_balance = changes.get("current_balance", old_balance)
-    if new_balance is not None and new_balance > Decimal(str(data["original_amount"])):
-        raise FinanceValidationError("Outstanding balance cannot exceed the original debt amount.")
     for key, value in changes.items():
         if key == "current_balance":
             continue
@@ -968,7 +964,7 @@ def debt_summary(user: AuthenticatedUser) -> DebtSummaryResponse:
         debt_ratio = repayments / monthly_income * Decimal("100") if monthly_income > 0 else None
         balance_change = Decimal("0")
         has_history = False
-        for item in active:
+        for item in group:
             history = item.get("balance_history") or []
             if len(history) >= 2:
                 has_history = True
