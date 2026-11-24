@@ -5,21 +5,22 @@ An AI-powered personal finance application designed initially for South African 
 ## Current implementation status
 
 **Implemented**
-- FastAPI application.
-- Root information endpoint: `GET /`.
-- Liveness endpoint: `GET /health`.
-- IBM Cloud Code Engine container deployment.
-- IBM Cloudant Lite instance and `finance-advisor-db` database provisioned.
-- Cloudant SDK dependency declared.
+- FastAPI application and IBM Cloud Code Engine deployment.
+- IBM Cloudant IAM connection and protected connectivity diagnostics.
+- Invite-only account registration with Argon2id password hashing.
+- Short-lived signed JWT access tokens.
+- Authenticated current-user endpoint.
+- Cloudant helpers that namespace finance records by authenticated user ID.
+- Automated tests and GitHub Actions lint/test workflow.
 
 **Not yet implemented**
-- Live Cloudant connection and persistence.
-- User authentication and authorization.
-- Transaction import and categorization.
+- Full production identity lifecycle (email verification, password reset, MFA and recovery).
+- Finance account and transaction APIs.
+- Secure bank statement import and document storage.
+- Transaction categorization and financial analytics.
 - watsonx.ai integration.
-- Document processing and financial analytics.
 
-The documentation describes planned foundations as well as implemented functionality. Do not treat planned components as working features.
+Do not treat planned components as working functionality. Authentication must be configured and deployed before registration can be used.
 
 ## Technology baseline
 
@@ -38,14 +39,14 @@ The initial architecture is a modular monolith. Separate services or Kubernetes 
 app/
   api/routes/       HTTP endpoints
   core/             Application configuration and shared concerns
-  database/         Database access and persistence
-  integrations/     External provider clients (Cloudant, watsonx, IBM COS)
-  models/           Domain and persistence models
-  schemas/          API request and response schemas
-  services/         Application and business logic
-tests/              Automated tests
-docs/               Architecture, security and delivery documentation
-.github/workflows/  Continuous integration
+  database/         Cloudant access and persistence
+  integrations/     External provider clients
+  models/            Domain and persistence models
+  schemas/           API request and response validation
+  services/          Application and business logic
+tests/               Automated tests
+docs/                Architecture, security and delivery documentation
+.github/workflows/   Continuous integration
 ```
 
 ## Local development
@@ -64,28 +65,19 @@ docs/               Architecture, security and delivery documentation
    uvicorn main:app --reload --host 127.0.0.1 --port 8080
    ```
 
-5. Open:
-   - API: http://127.0.0.1:8080/
-   - Health: http://127.0.0.1:8080/health
-   - Interactive API docs: http://127.0.0.1:8080/docs
+5. Open the API at http://127.0.0.1:8080/ and interactive docs at http://127.0.0.1:8080/docs.
 
-The application loads a local `.env` file for development. In IBM Cloud, configure environment values through Code Engine secrets and configuration, not through a file inside the image.
+## Authentication API
+
+- `POST /auth/register`: invite-only registration. Requires the `X-Registration-Invite` header.
+- `POST /auth/token`: exchange email and password for a short-lived bearer token.
+- `GET /auth/me`: return the authenticated account. Requires `Authorization: Bearer <token>`.
+
+Required server-side settings: `JWT_SECRET_KEY`, `AUTH_EMAIL_INDEX_KEY`, and (to enable registration) `REGISTRATION_INVITE_CODE`. Keep the two cryptographic keys independent and at least 32 bytes long. Do not put their values in source control.
 
 ## Tests and code quality
 
-Run tests:
-
-```bash
-pytest
-```
-
-Run lint checks:
-
-```bash
-ruff check .
-```
-
-GitHub Actions runs these checks on pushes and pull requests to `main`.
+Run tests with `pytest` and lint with `ruff check .`. GitHub Actions runs both on pushes and pull requests to `main`.
 
 ## Container build
 
@@ -96,19 +88,8 @@ docker run --rm -p 8080:8080 --env-file .env financial-advisor:local
 
 The container runs as a non-root user. Docker build exclusions are maintained in `.dockerignore`.
 
-## Configuration and secrets
+## Data protection
 
-- `.env.example` documents configuration names only. It contains no live credentials.
-- Local `.env` files are ignored by Git and excluded from Docker build context.
-- IBM Cloud credentials must be stored in IBM Cloud Code Engine secrets.
-- Do not place API keys, passwords, tokens, bank statements or real financial data in GitHub issues, commits, tests or logs.
-
-## Project documentation
-
-- [Architecture](docs/architecture.md)
-- [Security baseline](docs/security.md)
-- [Development roadmap](docs/roadmap.md)
-
-## Financial correctness
-
-Financial amounts must be calculated by deterministic application logic using verified transaction data. An AI model may explain or contextualize calculated results, but must not invent balances, transactions or financial metrics. Estimates and predictions must be labelled separately from confirmed figures.
+- Do not put API keys, passwords, tokens, bank statements or real financial data in GitHub issues, commits, tests or logs.
+- Do not import real bank records until user-level authorization, retention, deletion, backup, restore and access controls have been reviewed and tested.
+- Financial amounts must be calculated by deterministic application logic. AI may explain verified results but must not invent balances, transactions or financial metrics.
