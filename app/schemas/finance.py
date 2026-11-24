@@ -10,6 +10,7 @@ RecordId = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{32}$")]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 Money = Annotated[Decimal, Field(max_digits=18, decimal_places=2)]
 PositiveMoney = Annotated[Decimal, Field(gt=0, max_digits=18, decimal_places=2)]
+NonNegativeMoney = Annotated[Decimal, Field(ge=0, max_digits=18, decimal_places=2)]
 NonZeroMoney = Annotated[Decimal, Field(ne=0, max_digits=18, decimal_places=2)]
 
 
@@ -31,10 +32,19 @@ class FinancialAccountUpdate(FinanceRequest):
     display_name: Annotated[str, Field(min_length=1, max_length=80)] | None = None
     is_active: bool | None = None
 
+    @field_validator("display_name")
+    @classmethod
+    def clean_display_name(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            raise ValueError("Account display name cannot be blank.")
+        return value.strip()
+
     @model_validator(mode="after")
     def require_change(self):
         if not self.model_fields_set:
             raise ValueError("At least one account field must be supplied.")
+        if any(getattr(self, name) is None for name in self.model_fields_set):
+            raise ValueError("Account display name and active status cannot be cleared.")
         return self
 
 
@@ -80,6 +90,8 @@ class TransactionUpdate(FinanceRequest):
     def require_change(self):
         if not self.model_fields_set:
             raise ValueError("At least one transaction field must be supplied.")
+        if "is_reviewed" in self.model_fields_set and self.is_reviewed is None:
+            raise ValueError("Review status cannot be cleared.")
         return self
 
 
@@ -114,10 +126,23 @@ class CategoryUpdate(FinanceRequest):
     description: Annotated[str, Field(max_length=300)] | None = None
     is_active: bool | None = None
 
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            raise ValueError("Category name cannot be blank.")
+        return value.strip()
+
     @model_validator(mode="after")
     def require_change(self):
         if not self.model_fields_set:
             raise ValueError("At least one category field must be supplied.")
+        if any(
+            getattr(self, name) is None
+            for name in ("name", "is_active")
+            if name in self.model_fields_set
+        ):
+            raise ValueError("Category name and active status cannot be cleared.")
         return self
 
 
@@ -145,10 +170,23 @@ class BudgetUpdate(FinanceRequest):
     category_id: RecordId | None = None
     is_active: bool | None = None
 
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            raise ValueError("Budget name cannot be blank.")
+        return value.strip()
+
     @model_validator(mode="after")
     def require_change(self):
         if not self.model_fields_set:
             raise ValueError("At least one budget field must be supplied.")
+        if any(
+            getattr(self, name) is None
+            for name in ("name", "amount", "is_active")
+            if name in self.model_fields_set
+        ):
+            raise ValueError("Budget name, amount and active status cannot be cleared.")
         return self
 
 
@@ -177,10 +215,23 @@ class GoalUpdate(FinanceRequest):
     target_date: date | None = None
     is_active: bool | None = None
 
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            raise ValueError("Goal name cannot be blank.")
+        return value.strip()
+
     @model_validator(mode="after")
     def require_change(self):
         if not self.model_fields_set:
             raise ValueError("At least one goal field must be supplied.")
+        if any(
+            getattr(self, name) is None
+            for name in ("name", "target_amount", "is_active")
+            if name in self.model_fields_set
+        ):
+            raise ValueError("Goal name, target amount and active status cannot be cleared.")
         return self
 
 
@@ -196,7 +247,7 @@ class FinancialGoal(FinanceRequest):
     target_amount: PositiveMoney
     currency: CurrencyCode
     target_date: date | None
-    contributed_amount: Money
+    contributed_amount: NonNegativeMoney
     is_active: bool
     created_at: datetime
     updated_at: datetime
