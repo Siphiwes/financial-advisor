@@ -14,6 +14,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from app.core.security import verify_password
 from app.database.cloudant import get_cloudant_client, get_database_name
 from app.database.scoped import (
     UserScopedDocumentNotFoundError,
@@ -23,7 +24,6 @@ from app.database.scoped import (
     list_user_scoped_documents,
     update_user_scoped_document,
 )
-from app.core.security import verify_password
 from app.database.users import get_user_by_email
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
