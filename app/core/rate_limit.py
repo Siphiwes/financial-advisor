@@ -70,7 +70,7 @@ def enforce_rate_limit(
         raise RateLimitUnavailable("The shared rate-limit store is not configured.")
 
     parsed_redis_url = urlsplit(redis_url)
-    app_environment = (get_setting("APP_ENV", "development") or "development").casefold()
+    app_environment = (get_setting("APP_ENV", "production") or "production").casefold()
     if (
         parsed_redis_url.scheme not in {"redis", "rediss"}
         or not parsed_redis_url.hostname
