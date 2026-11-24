@@ -28,6 +28,16 @@ def _decimal_text(value: Decimal | None) -> str | None:
     return format(value, "f") if value is not None else None
 
 
+def _validate_money_precision(value: Decimal | None) -> None:
+    if value is None:
+        return
+    if value.as_tuple().exponent < -2 or abs(value) >= Decimal("10000000000000000"):
+        raise ValueError(
+            "The FNB statement contains a monetary value that exceeds the supported "
+            "precision of 16 whole digits and 2 decimal places."
+        )
+
+
 def _import_record_id(user_id: str, account_id: str, content_digest: str) -> str:
     source = f"{user_id}:{account_id}:{content_digest}".encode("utf-8")
     return hashlib.sha256(source).hexdigest()[:32]
@@ -95,6 +105,10 @@ def confirm_fnb_csv_import(
         raise ValueError("The FNB statement transaction count is outside the supported range.")
     if any(not transaction.description.strip() for transaction in statement.transactions):
         raise ValueError("An FNB transaction row has no description.")
+    for transaction in statement.transactions:
+        _validate_money_precision(transaction.amount)
+        _validate_money_precision(transaction.service_fee)
+        _validate_money_precision(transaction.balance)
 
     account_id = account_document["record_id"]
     account_data = account_document["data"]
@@ -132,7 +146,7 @@ def confirm_fnb_csv_import(
         "statement_date": statement.statement_date.isoformat()
         if statement.statement_date
         else None,
-        "account_last_four": account_data.get("account_last_four"),
+        "account_last_four": account_data.get("account_last_four") or statement.account_last_four,
         "transaction_count": len(statement.transactions),
         "imported_count": 0,
         "duplicate_count": 0,
