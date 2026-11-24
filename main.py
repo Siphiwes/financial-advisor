@@ -1,19 +1,9 @@
-from fastapi import FastAPI
+"""Compatibility entry point for the container command.
 
-app = FastAPI(
-    title="Financial Advisor API",
-    description="Backend API for the AI Personal Finance Advisor",
-    version="0.1.0",
-)
+The application is defined in app.main. Keeping this module at the repository
+root preserves the existing Uvicorn command used by IBM Code Engine.
+"""
 
-@app.get("/")
-def read_root():
-    return {
-        "application": "Financial Advisor API",
-        "status": "running",
-        "version": "0.1.0",
-    }
+from app.main import app
 
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+__all__ = ["app"]
