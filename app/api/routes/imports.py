@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.api.dependencies import get_current_user
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.imports import FNBImportPreview, FNBTransactionPreview
-from app.services.fnb_csv import FNBCSVValidationError, MAX_CSV_BYTES, parse_fnb_csv
+from app.services.fnb_csv import MAX_CSV_BYTES, FNBCSVValidationError, parse_fnb_csv
 
 router = APIRouter(prefix="/imports", tags=["statement imports"])
 PREVIEW_TRANSACTION_LIMIT = 10
