@@ -368,6 +368,10 @@ def financial_summary(
     category_totals: dict[tuple[str, str], dict[str, Any]] = defaultdict(
         lambda: {"expenses": Decimal("0"), "count": 0}
     )
+    category_kinds = {
+        category_item["name"].casefold(): category_item["kind"]
+        for category_item in list_categories(user)
+    }
 
     for item in records:
         if item.get("is_deleted"):
@@ -383,10 +387,6 @@ def financial_summary(
         totals = currency_totals[currency]
         totals["count"] += 1
         category = item.get("category") or "Uncategorised"
-        category_kinds = {
-            category_item["name"].casefold(): category_item["kind"]
-            for category_item in list_categories(user)
-        }
         category_kind = category_kinds.get(
             category.casefold(),
             "income" if amount >= 0 else "expense",
@@ -842,13 +842,18 @@ def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) 
 def recurring_payment_candidates(user: AuthenticatedUser) -> list[dict]:
     """Identify possible recurring debits from the user's actual transaction records."""
     transactions, _ = _list_all_records(user.id, "transactions")
+    category_kinds = {
+        category_item["name"].casefold(): category_item["kind"]
+        for category_item in list_categories(user)
+    }
     grouped: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
 
     for transaction in transactions:
         if transaction.get("is_deleted"):
             continue
         amount = Decimal(str(transaction["amount"]))
-        if amount >= 0 or (transaction.get("category") or "").casefold() == "transfers":
+        category = (transaction.get("category") or "").casefold()
+        if amount >= 0 or category_kinds.get(category) == "transfer":
             continue
         description = re.sub(
             r"\d+",
