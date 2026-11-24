@@ -84,7 +84,7 @@ Run the container as a non-root user. Restrict CORS to known frontend origins wh
 - If one of these required audit writes fails, the request fails closed with HTTP 503. Audit metadata excludes transaction descriptions, amounts, references and statement contents.
 - The audit trail remains user-scoped and is removed by the current account deletion workflow. It is not an immutable compliance archive and does not yet cover every administrative or authentication event.
 - Encrypted Cloudant backup and restore scripts are provided under scripts/. They require a separate protected runner, COS HMAC credentials and age encryption keys. The scripts do not run in the application container.
-- Backup and restore scripts must be syntax-checked and a recovery test completed before financial-data writes are enabled.
+- For the current single-owner personal deployment, backup/restore is explicitly deferred. The owner accepts the risk of permanent data loss until a backup process is configured and restored successfully.
 - No automated retention deletion or backup lifecycle expiry is enabled until the data controller approves the retention policy.
 
 
@@ -97,4 +97,4 @@ Run the container as a non-root user. Restrict CORS to known frontend origins wh
 - The limiter fails closed with HTTP 503 if enabled but Redis is missing or unavailable. Exceeded limits return HTTP 429 and Retry-After.
 - Production requires a TLS Redis URL (rediss://). AUTH_RATE_LIMIT_ENABLED defaults to false until a shared Redis-compatible service has been provisioned and verified.
 - The application uses the socket peer address and deliberately does not trust arbitrary X-Forwarded-For values. Confirm what Code Engine exposes as the peer address before relying on the peer-based threshold. If Code Engine presents a shared ingress peer, tune or move IP limiting to a trusted edge gateway.
-- Provision a private Redis-compatible service, store REDIS_URL as a Code Engine secret reference, set APP_ENV=production and AUTH_RATE_LIMIT_ENABLED=true, then verify limits across more than one application instance before public use.
+- Redis provisioning is out of scope for the current single-owner personal deployment. Keep AUTH_RATE_LIMIT_ENABLED=false and do not expose public registration.

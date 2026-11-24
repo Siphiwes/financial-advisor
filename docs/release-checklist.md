@@ -44,28 +44,25 @@ Confirm:
 - CLOUDANT_DIAGNOSTICS_TOKEN is not referenced by the application after connectivity testing.
 - No secret values are stored in image build arguments or plain environment variables.
 
-## 4. Feature gates
+## 4. Feature gates for personal use
 
-The defaults are intentionally safe:
+The defaults remain disabled:
 
 - FINANCIAL_DATA_ENABLED=false
 - FINANCIAL_AI_ENABLED=false
 
-The application, login and preview interface can be smoke-tested while these flags are false. Persistent account/transaction/budget/goal APIs and confirmed FNB imports remain disabled until the financial-data release approval is complete.
+This deployment is intended for one owner, not public registration or commercial multi-user access. Keep registration invitation-only and do not share the application publicly.
 
-Before setting FINANCIAL_DATA_ENABLED=true, complete all of the following:
-- [ ] Define retention periods and deletion handling for primary data and backups.
-- [ ] Configure automated Cloudant backups, protect backup access and complete a restore test.
-- [ ] Verify user export and password-confirmed account deletion, including the 10,000-record-per-collection limit.
-- [ ] Expand audit coverage to sensitive reads, exports, account deletion and administrative operations; set alerts for audit-write failures.
-- [ ] Configure distributed rate limiting and abuse protection for registration, login, imports and AI.
-- [ ] Complete the required identity lifecycle controls for the intended audience, including email verification, password reset, MFA and account recovery, or document an approved restricted owner-only operating model.
-- [ ] Establish monitoring, incident response, credential rotation and an access-review process.
-- [ ] Complete the privacy/security assessment, including POPIA and the Frankfurt cross-border processing arrangements.
+Before enabling FINANCIAL_DATA_ENABLED for personal use:
+- [ ] Confirm the owner can sign in and the account email is verified.
+- [ ] Confirm the real FNB CSV preview matches the source statement before the first import.
+- [ ] Confirm export and account deletion endpoints are available.
+- [ ] Understand that automated backup and restore are intentionally out of scope. Cloudant data loss or accidental deletion may be permanent.
+- [ ] Keep credentials and financial records out of GitHub, logs and email.
 
-Do not set FINANCIAL_DATA_ENABLED=true simply to make a deployment smoke test pass.
+The owner has explicitly deferred MFA, a separate security-testing phase, Redis provisioning, backup/restore work and a formal POPIA/commercial compliance review. Do not present those controls as completed.
 
-Keep FINANCIAL_AI_ENABLED=false until the IBM watsonx.ai project, model, region, credentials, retention terms, user notice and data-sharing approval are all verified. AI requests also require explicit user consent.
+Keep FINANCIAL_AI_ENABLED=false until the existing IBM watsonx.ai integration has the correct Frankfurt project, model ID, API version and credentials. Keep explicit per-request consent enabled. Do not send raw bank statements or full transaction histories to the AI provider.
 
 ## 5. Build and deploy
 
@@ -126,35 +123,23 @@ Repeat the same file/account import only as an idempotency check. It should retu
 The application can be deployed with financial and AI features disabled for a safe technical smoke test. A deployment with persistent financial data enabled is approved only after the operational and privacy controls above have been completed and verified. This checklist does not replace a legal review or a real-statement validation.
 
 
-## 9. Recovery and audit implementation status
+## 9. Deferred personal-use infrastructure
 
-Repository support is now present:
-- scripts/cloudant-backup.sh streams a full CouchBackup export through gzip and age encryption before uploading the encrypted object and checksum to COS.
-- scripts/cloudant-restore.sh verifies the downloaded checksum, decrypts the archive and restores only to a separately named database.
-- CI syntax-checks both shell scripts.
-- Sensitive finance reads, statement preview/history, export and AI data-sharing requests write minimal audit events. Required audit writes fail closed.
+Cloudant backup/restore automation and shared Redis rate limiting are deliberately deferred for this single-owner personal deployment. Existing scripts and Redis support may remain in the repository, but they are not required for this release and must not be described as provisioned or active.
 
-Still requires IBM Cloud/operator action:
-- Provision COS bucket and least-privilege HMAC credentials.
-- Generate and securely escrow the age private identity.
-- Configure protected scheduled execution and alerting.
-- Run a real backup and restore into a new empty Cloudant database.
-- Recreate Cloudant security settings and validate the restored application in an isolated environment.
-- Complete and approve docs/retention-policy-template.md, including COS lifecycle expiry.
-- Decide RPO and RTO and document evidence.
+The owner accepts that, without a separately configured backup and tested restore process, Cloudant data loss or accidental deletion may be permanent. Keep credentials protected and do not store bank statements or real financial records in GitHub.
 
-The audit collection is user-scoped and is deleted with the account. It is not an immutable compliance archive. Audit coverage is improved but does not yet include every authentication, administrative, export/deletion or operational event. Do not describe this as complete compliance audit logging.
+The application's Redis rate limiter remains disabled by default. No Redis service or REDIS_URL is required for this personal deployment.
 
+The existing audit collection is user-scoped and is deleted with the account. It is not an immutable compliance archive.
 
-## Shared rate-limit service
+## Personal-use transactional email
 
-The application now supports Redis-backed authentication rate limits, but the limiter is disabled by default.
+- [ ] Configure a personal SMTP provider using TLS (port 465 or STARTTLS on 587).
+- [ ] Store the SMTP app password in an IBM Code Engine secret.
+- [ ] Set the SMTP environment variables and the deployed HTTPS APP_PUBLIC_URL.
+- [ ] Send and receive a real verification email.
+- [ ] Keep EMAIL_ENABLED=false until delivery succeeds.
+- [ ] Keep registration invitation-only. Do not enable public sign-up.
 
-- [ ] Provision a private Redis-compatible service with TLS.
-- [ ] Store REDIS_URL in a Code Engine secret and reference it in the application.
-- [ ] Set APP_ENV=production and AUTH_RATE_LIMIT_ENABLED=true.
-- [ ] Confirm Code Engine's observed socket peer behavior before relying on peer-based limits; do not trust arbitrary X-Forwarded-For headers.
-- [ ] Verify HTTP 429 and Retry-After behavior across multiple application instances.
-- [ ] Verify the app fails closed with HTTP 503 if the shared store is unavailable.
-
-Do not enable public registration or broader user access before this has been verified.
+See docs/transactional-email.md for the personal Gmail SMTP setup and account workflow details.
