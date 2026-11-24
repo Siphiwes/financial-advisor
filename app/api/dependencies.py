@@ -100,7 +100,7 @@ def require_financial_data_enabled(
     _current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> None:
     """Authenticate first, then gate persistence until release safeguards pass."""
-    enabled = (get_setting("FINANCIAL_DATA_ENABLED", "false") or "false").strip().casefold()
+    enabled = (get_setting("FINANCIAL_DATA_ENABLED", "true") or "true").strip().casefold()
     if enabled not in {"1", "true", "yes", "on"}:
         raise HTTPException(
             status_code=503,
