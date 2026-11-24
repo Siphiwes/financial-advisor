@@ -78,7 +78,7 @@ class TransactionResponse(BaseModel):
     balance_after: Decimal | None
     category: str | None
     notes: str | None
-    source: Literal["manual", "fnb_csv"]
+    source: Literal["manual", "fnb_csv", "fnb_pdf"]
     import_id: str | None
     original: dict
     corrections: list[dict]
