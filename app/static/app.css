@@ -17,7 +17,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--canvas); color: var(--ink); line-height: 1.5; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 .topbar {
@@ -56,10 +56,11 @@ p { margin-bottom: 10px; }
 .login-panel { padding: 28px; }
 .login-panel h2 { margin-bottom: 21px; }
 label { display: block; color: #34485c; font-size: 13px; font-weight: 650; margin: 0 0 6px; }
-input, select {
+input, select, textarea {
   width: 100%; min-height: 42px; border: 1px solid #ccd7e1; border-radius: 8px;
   background: #fff; color: var(--ink); padding: 9px 11px; outline: none;
 }
+textarea { resize: vertical; min-height: 90px; }
 input:focus, select:focus { border-color: #4a83b5; box-shadow: 0 0 0 3px rgba(51, 117, 173, .13); }
 .login-panel input { margin-bottom: 16px; }
 .button {
@@ -111,6 +112,9 @@ input:focus, select:focus { border-color: #4a83b5; box-shadow: 0 0 0 3px rgba(51
 .empty-state { color: #8190a0; font-size: 13px; padding: 9px 0; }
 .ai-panel { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-top: 15px; }
 .ai-panel .status-pill { color: #536a80; background: #eef3f7; }
+.ai-panel-content { flex: 1; min-width: 0; }
+.advisor-form { display: grid; gap: 11px; margin-top: 16px; max-width: 760px; }
+.advisor-answer { margin-top: 16px; border-radius: 9px; background: #f2f6f9; border: 1px solid var(--line); padding: 15px; white-space: pre-wrap; font-size: 13px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 5px 0 17px; }
 .section-heading p { font-size: 13px; margin: 0; }
 .form-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 18px; }
