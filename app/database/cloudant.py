@@ -1,6 +1,6 @@
 """IBM Cloudant client configuration and safe connectivity diagnostics."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -64,7 +64,7 @@ def verify_document_round_trip(client: CloudantV1, database: str) -> dict[str, b
     probe_document = {
         "type": "connection_diagnostic",
         "probe_nonce": nonce,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
 
     created: dict = {}

@@ -60,7 +60,10 @@ def cloudant_health() -> dict:
         logger.warning("Cloudant connectivity check failed: %s", type(exc).__name__)
         raise HTTPException(
             status_code=502,
-            detail="Cloudant connectivity check failed. Check application logs and IAM permissions.",
+            detail=(
+                "Cloudant connectivity check failed. "
+                "Check application logs and IAM permissions."
+            ),
         ) from exc
 
     return {
