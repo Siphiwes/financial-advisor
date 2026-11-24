@@ -550,6 +550,7 @@ def commit_fnb_import(
     account_id: str,
     statement: FNBStatement,
     original_content: bytes,
+    source_format: str = "FNB_CSV",
 ) -> FNBImportCommitResponse:
     """Persist a confirmed FNB statement with retry-safe duplicate detection."""
     account = get_financial_account(user.id, account_id)
@@ -588,7 +589,7 @@ def commit_fnb_import(
 
     if batch_document is None:
         batch_data = {
-            "source": "FNB_CSV",
+            "source": source_format,
             "account_id": account_id,
             "file_sha256": content_hash,
             "status": "processing",
@@ -646,7 +647,7 @@ def commit_fnb_import(
                 "balance_after": balance_after,
                 "category": None,
                 "notes": None,
-                "source": "fnb_csv",
+                "source": source_format.casefold().replace(" ", "_"),
                 "import_id": batch_id,
                 "original": {
                     "transaction_date": transaction_date,
