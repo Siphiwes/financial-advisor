@@ -33,7 +33,7 @@ class FinancialAccountUpdate(FinanceRequest):
 
     @model_validator(mode="after")
     def require_change(self):
-        if self.display_name is None and self.is_active is None:
+        if not self.model_fields_set:
             raise ValueError("At least one account field must be supplied.")
         return self
 
@@ -78,15 +78,7 @@ class TransactionUpdate(FinanceRequest):
 
     @model_validator(mode="after")
     def require_change(self):
-        if all(
-            value is None
-            for value in (
-                self.category_id,
-                self.merchant_override,
-                self.notes,
-                self.is_reviewed,
-            )
-        ):
+        if not self.model_fields_set:
             raise ValueError("At least one transaction field must be supplied.")
         return self
 
@@ -124,7 +116,7 @@ class CategoryUpdate(FinanceRequest):
 
     @model_validator(mode="after")
     def require_change(self):
-        if self.name is None and self.description is None and self.is_active is None:
+        if not self.model_fields_set:
             raise ValueError("At least one category field must be supplied.")
         return self
 
@@ -155,7 +147,7 @@ class BudgetUpdate(FinanceRequest):
 
     @model_validator(mode="after")
     def require_change(self):
-        if all(value is None for value in (self.name, self.amount, self.category_id, self.is_active)):
+        if not self.model_fields_set:
             raise ValueError("At least one budget field must be supplied.")
         return self
 
@@ -187,10 +179,7 @@ class GoalUpdate(FinanceRequest):
 
     @model_validator(mode="after")
     def require_change(self):
-        if all(
-            value is None
-            for value in (self.name, self.target_amount, self.target_date, self.is_active)
-        ):
+        if not self.model_fields_set:
             raise ValueError("At least one goal field must be supplied.")
         return self
 
