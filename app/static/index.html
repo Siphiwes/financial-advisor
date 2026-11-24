@@ -28,14 +28,29 @@
         <p>Sign in to work with your accounts, transactions, budgets and financial goals.</p>
         <p class="privacy-note">Your access token is held in memory in this browser tab. It is not saved in browser storage.</p>
       </div>
-      <form id="login-form" class="panel login-panel">
-        <h2>Sign in</h2>
-        <label for="email">Email address</label>
-        <input id="email" name="email" type="email" autocomplete="username" required>
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
-        <button class="button button-primary full-width" type="submit">Sign in</button>
-        <p id="login-message" class="form-message" role="status"></p>
+      <div id="login-panel" class="panel login-panel">
+        <form id="login-form">
+          <h2>Sign in</h2>
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="username" required>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <button class="button button-primary full-width" type="submit">Sign in</button>
+          <p id="login-message" class="form-message" role="status"></p>
+        </form>
+        <p class="small muted account-switch">New here? <button id="show-register" class="text-button" type="button">Create an account</button></p>
+      </div>
+      <form id="register-panel" class="panel login-panel hidden">
+        <h2>Create an account</h2>
+        <label for="register-email">Email address</label>
+        <input id="register-email" type="email" autocomplete="username" required>
+        <label for="register-password">Password (at least 12 characters)</label>
+        <input id="register-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <label for="registration-invite">Invitation code</label>
+        <input id="registration-invite" type="password" autocomplete="off" required>
+        <button class="button button-primary full-width" type="submit">Create account</button>
+        <p id="register-message" class="form-message" role="status"></p>
+        <p class="small muted account-switch">Already have an account? <button id="back-to-login" class="text-button" type="button">Sign in</button></p>
       </form>
     </section>
 
@@ -207,6 +222,31 @@
           <p class="muted">Export includes your account metadata, transactions, categories, budgets, goals and import history. Original bank statement files aren't retained by this application and won't be included.</p>
           <button id="export-data-button" class="button button-secondary" type="button">Download my data</button>
           <p id="export-message" class="form-message" role="status"></p>
+        </article>
+
+        <article class="panel privacy-card">
+          <div class="panel-heading">
+            <div><h3>Recent account activity</h3><p class="muted">Security and financial-record changes</p></div>
+            <button id="refresh-audit-button" class="button button-secondary" type="button">Refresh</button>
+          </div>
+          <div id="audit-list" class="empty-state">No recent activity is available.</div>
+        </article>
+        <article class="panel privacy-card">
+          <h3>Change password</h3>
+          <form id="password-change-form" class="form-grid">
+            <div><label for="password-current">Current password</label><input id="password-current" type="password" autocomplete="current-password" required></div>
+            <div><label for="password-new">New password (at least 12 characters)</label><input id="password-new" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></div>
+            <div class="span-all"><button class="button button-primary" type="submit">Change password</button><span id="password-change-message" class="form-message" role="status"></span></div>
+          </form>
+        </article>
+        <article class="panel privacy-card">
+          <h3>Sign out all sessions</h3>
+          <p class="muted">Use this after signing in on a shared device or if you think another device may have access to your account. All existing access tokens will be invalidated.</p>
+          <form id="revoke-sessions-form" class="form-actions">
+            <input id="revoke-current-password" type="password" autocomplete="current-password" placeholder="Current password" required>
+            <button class="button button-secondary" type="submit">Revoke all sessions</button>
+            <span id="revoke-sessions-message" class="form-message" role="status"></span>
+          </form>
         </article>
         <article class="panel privacy-danger">
           <h3>Delete your account and data</h3>
