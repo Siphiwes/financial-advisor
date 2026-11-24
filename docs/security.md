@@ -5,21 +5,39 @@
 - Never commit live API keys, passwords, access tokens or private certificates.
 - Use local `.env` files only for local development; they are ignored by Git and excluded from Docker build context.
 - Use IBM Code Engine secrets for deployed credentials.
-- Keep the Cloudant diagnostics token separate from the Cloudant IAM API key.
+- Keep Cloudant diagnostics credentials separate from application credentials.
+- Keep `JWT_SECRET_KEY` and `AUTH_EMAIL_INDEX_KEY` independent, random, and at least 32 bytes long.
+- Keep `REGISTRATION_INVITE_CODE` private. Registration is disabled when it is not configured.
 - Rotate credentials if exposed. Do not paste secrets into issues, logs or chat.
 
 ## Financial data protection
 
 - Do not commit bank statements, transaction exports, account identifiers or personal financial records to GitHub.
-- Do not import actual financial data until user authentication, per-user authorization, consent, retention, deletion, backup and access controls are implemented and tested.
-- Automated tests may use isolated technical fixtures and mocked service responses. They must not introduce fabricated financial transaction histories as product test data.
+- Do not import actual financial data until authentication, per-user authorization, consent, retention, deletion, backup and access controls are implemented and tested.
+- Automated tests use technical fixtures and mocked service responses, not fabricated financial transaction histories.
 - End-to-end finance tests should use user-authorized actual financial records only after the required protections are in place.
 - Collect only the data required for a defined feature.
 - Do not log transaction descriptions, account identifiers, document contents, API keys or authentication tokens.
 
-## Authorization
+## Authentication currently implemented
 
-Authentication and authorization are not implemented yet. Before real financial data is introduced, enforce user-level access controls at every data access boundary and test for cross-user data exposure.
+- Account registration requires the `X-Registration-Invite` header and a server-side `REGISTRATION_INVITE_CODE`. If the secret is absent, registration is disabled.
+- Passwords are hashed using Argon2id through pwdlib. Passwords are never returned by API responses.
+- Access tokens are signed JWTs using HS256, with issuer, audience, expiry, subject, token ID and account-version claims.
+- Access-token lifetime is constrained to 5-60 minutes and defaults to 15 minutes.
+- The current-user dependency reloads the account from Cloudant and checks account status and token version on every protected request.
+- User email lookup document IDs use a keyed HMAC. Raw email addresses are stored only in the user document, not in its Cloudant document ID.
+- Financial document IDs include the authenticated user's UUID namespace. Access helpers require the caller's user ID and do not accept an owner ID from request payloads.
+
+## Important limitations before real financial data
+
+- Authentication endpoints are a foundation, not a complete production identity platform.
+- There is no password reset, verified-email workflow, MFA, refresh-token rotation, account recovery or user-facing session revocation endpoint yet.
+- Registration invite codes are a bootstrap control, not a substitute for a full onboarding and abuse-prevention workflow.
+- Apply edge-level rate limiting to registration and login before public exposure.
+- Configure a strong, unique JWT secret and email-index key in Code Engine before enabling registration or issuing tokens.
+- Do not expose finance endpoints until every read, update, delete, export and aggregate query is tied to the authenticated user and has cross-user isolation tests.
+- Complete privacy, retention, deletion, backup, restore, audit logging and incident-response controls before importing real bank data.
 
 ## AI safety and financial correctness
 
