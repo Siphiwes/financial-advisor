@@ -32,3 +32,15 @@ class FNBImportPreview(BaseModel):
     transactions: list[FNBTransactionPreview]
     persisted: Literal[False] = False
     message: str
+
+
+class FNBImportConfirmation(BaseModel):
+    """Result of a user-confirmed FNB statement import."""
+
+    import_id: str
+    status: Literal["completed"]
+    transaction_count: int
+    imported_count: int
+    duplicate_count: int
+    already_imported: bool
+    persisted: Literal[True] = True
