@@ -6,9 +6,16 @@ from uuid import UUID, uuid4
 
 _COLLECTION_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,31}$")
 _RESERVED_COLLECTIONS = {"user", "users", "system"}
+MAX_QUERY_LIMIT = 500
+
 
 class UserScopedDocumentNotFoundError(LookupError):
     """Raised when a user-scoped record does not exist for the current user."""
+
+
+class UserScopedDocumentConflictError(RuntimeError):
+    """Raised when a deterministic user-scoped document ID already exists."""
+
 
 def _validate_scope(user_id: str, collection: str, record_id: str | None = None) -> str:
     """Validate identifiers before composing a Cloudant document ID."""
@@ -28,17 +35,29 @@ def _validate_scope(user_id: str, collection: str, record_id: str | None = None)
 
     return normalized_user_id
 
+
 def _document_id(user_id: str, collection: str, record_id: str) -> str:
     """Build a Cloudant ID that cannot address another user's namespace."""
     normalized_user_id = _validate_scope(user_id, collection, record_id)
     return f"finance:{normalized_user_id}:{collection}:{record_id}"
 
+
+def _http_status(error: Exception) -> int | None:
+    """Read an HTTP status from SDK exceptions without exposing their contents."""
+    for attribute in ("code", "status_code"):
+        value = getattr(error, attribute, None)
+        if isinstance(value, int):
+            return value
+    return None
+
+
 def _is_not_found(error: Exception) -> bool:
-    """Recognize a Cloudant HTTP 404 response."""
-    return (
-        getattr(error, "code", None) == 404
-        or getattr(error, "status_code", None) == 404
-    )
+    return _http_status(error) == 404
+
+
+def _is_conflict(error: Exception) -> bool:
+    return _http_status(error) == 409
+
 
 def create_user_scoped_document(
     client,
@@ -46,26 +65,40 @@ def create_user_scoped_document(
     user_id: str,
     collection: str,
     data: dict,
+    *,
+    record_id: str | None = None,
 ) -> str:
-    """Create a finance record inside the authenticated user's document namespace."""
+    """Create a finance record inside the authenticated user's document namespace.
+
+    Callers may supply a deterministic UUID-hex record ID for idempotent imports.
+    """
     _validate_scope(user_id, collection)
     if not isinstance(data, dict):
         raise ValueError("Document data must be an object.")
 
-    record_id = uuid4().hex
+    selected_record_id = record_id or uuid4().hex
     document = {
-        "_id": _document_id(user_id, collection, record_id),
+        "_id": _document_id(user_id, collection, selected_record_id),
         "type": collection,
         "user_id": user_id,
-        "record_id": record_id,
+        "record_id": selected_record_id,
         "data": data,
         "created_at": datetime.now(UTC).isoformat(),
         "updated_at": datetime.now(UTC).isoformat(),
     }
-    result = client.post_document(db=database, document=document).get_result()
+    try:
+        result = client.post_document(db=database, document=document).get_result()
+    except Exception as exc:
+        if _is_conflict(exc):
+            raise UserScopedDocumentConflictError(
+                "A record with this identifier already exists."
+            ) from exc
+        raise
+
     if result.get("ok") is not True:
         raise RuntimeError("Cloudant did not confirm record creation.")
-    return record_id
+    return selected_record_id
+
 
 def get_user_scoped_document(
     client,
@@ -77,10 +110,7 @@ def get_user_scoped_document(
     """Read a record only through the current user's document namespace."""
     document_id = _document_id(user_id, collection, record_id)
     try:
-        document = client.get_document(
-            db=database,
-            doc_id=document_id,
-        ).get_result()
+        document = client.get_document(db=database, doc_id=document_id).get_result()
     except Exception as exc:
         if _is_not_found(exc):
             return None
@@ -93,6 +123,49 @@ def get_user_scoped_document(
     ):
         return None
     return document
+
+
+def list_user_scoped_documents(
+    client,
+    database: str,
+    user_id: str,
+    collection: str,
+    *,
+    limit: int = 100,
+    bookmark: str | None = None,
+    filters: dict | None = None,
+) -> dict:
+    """List only documents belonging to one user and one application collection."""
+    _validate_scope(user_id, collection)
+    if not 1 <= limit <= MAX_QUERY_LIMIT:
+        raise ValueError(f"Query limit must be between 1 and {MAX_QUERY_LIMIT}.")
+
+    selector = {"user_id": user_id, "type": collection}
+    if filters:
+        if {"user_id", "type", "_id"}.intersection(filters):
+            raise ValueError("Query filters cannot override document ownership.")
+        selector.update(filters)
+
+    result = client.post_find(
+        db=database,
+        selector=selector,
+        limit=limit,
+        bookmark=bookmark,
+    ).get_result()
+
+    documents = [
+        document
+        for document in result.get("docs", [])
+        if (
+            document.get("user_id") == user_id
+            and document.get("type") == collection
+        )
+    ]
+    return {
+        "documents": documents,
+        "bookmark": result.get("bookmark"),
+    }
+
 
 def update_user_scoped_document(
     client,
@@ -123,6 +196,7 @@ def update_user_scoped_document(
         document=document,
     ).get_result()
 
+
 def delete_user_scoped_document(
     client,
     database: str,
@@ -147,3 +221,15 @@ def delete_user_scoped_document(
         rev=document["_rev"],
     ).get_result()
     return result.get("ok") is True
+
+
+def ensure_user_scope_index(client, database: str) -> dict:
+    """Create the JSON index required for efficient user-scoped queries."""
+    return client.post_index(
+        db=database,
+        ddoc="finance_user_scope",
+        name="by_user_type",
+        type="json",
+        index={"fields": ["user_id", "type"]},
+        partitioned=False,
+    ).get_result()
