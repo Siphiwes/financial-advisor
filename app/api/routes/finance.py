@@ -1,11 +1,13 @@
 """Authenticated financial account, transaction, budget and goal APIs."""
 
+import hashlib
 import logging
+import re
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.api.dependencies import get_current_user
 from app.database.cloudant import (
@@ -36,6 +38,8 @@ from app.schemas.finance import (
     GoalCreate,
     GoalUpdate,
     FinancialSummary,
+    GoalContribution,
+    GoalContributionCreate,
     Transaction,
     TransactionCreate,
     TransactionUpdate,
@@ -530,6 +534,87 @@ def update_budget(
     return _as_record(updated, Budget)
 
 
+@router.get("/budgets/progress", response_model=list[dict])
+def budget_progress(
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    period: Annotated[str, Query(pattern=r"^[0-9]{4}-(0[1-9]|1[0-2])$")],
+):
+    from calendar import monthrange
+
+    year, month = (int(part) for part in period.split("-"))
+    first_day = date(year, month, 1)
+    last_day = date(year, month, monthrange(year, month)[1])
+    client, database = _connection()
+
+    budget_page = _list_records(
+        client,
+        database,
+        current_user.id,
+        "budgets",
+        200,
+        None,
+        {"data.period": period},
+    )
+    transaction_page = _list_records(
+        client,
+        database,
+        current_user.id,
+        "transactions",
+        500,
+        None,
+        {
+            "data.transaction_date": {
+                "$gte": first_day.isoformat(),
+                "$lte": last_day.isoformat(),
+            },
+            "data.is_deleted": {"$ne": True},
+        },
+    )
+    category_page = _list_records(
+        client, database, current_user.id, "categories", 200, None
+    )
+    category_kinds = {
+        item["record_id"]: item["data"].get("kind")
+        for item in category_page["items"]
+    }
+
+    results = []
+    for budget_document in budget_page["items"]:
+        budget = budget_document["data"]
+        category_id = budget.get("category_id")
+        spent = Decimal("0.00")
+        for transaction_document in transaction_page["items"]:
+            transaction = transaction_document["data"]
+            if transaction.get("is_deleted") is True:
+                continue
+            if transaction.get("currency") != budget["currency"]:
+                continue
+            transaction_category = transaction.get("category_id")
+            if category_kinds.get(transaction_category) == "transfer":
+                continue
+            if category_id is not None and transaction_category != category_id:
+                continue
+            amount = Decimal(str(transaction["amount"]))
+            if amount < 0:
+                spent += abs(amount)
+
+        budget_amount = Decimal(str(budget["amount"]))
+        results.append(
+            {
+                "id": budget_document["record_id"],
+                "name": budget["name"],
+                "period": budget["period"],
+                "currency": budget["currency"],
+                "amount": budget_amount,
+                "spent": spent,
+                "remaining": budget_amount - spent,
+                "is_over_budget": spent > budget_amount,
+                "category_id": category_id,
+            }
+        )
+    return results
+
+
 @router.post(
     "/goals",
     response_model=FinancialGoal,
@@ -557,6 +642,37 @@ def create_goal(
     return _as_record(document, FinancialGoal)
 
 
+def _goal_contributed_amount(
+    client,
+    database: str,
+    user_id: str,
+    goal_id: str,
+) -> Decimal:
+    total = Decimal("0.00")
+    bookmark = None
+    while True:
+        page = list_user_scoped_documents(
+            client,
+            database,
+            user_id,
+            "goal_contributions",
+            limit=200,
+            bookmark=bookmark,
+            filters={"data.goal_id": goal_id},
+        )
+        for contribution in page["documents"]:
+            total += Decimal(str(contribution["data"]["amount"]))
+        bookmark = page.get("bookmark")
+        if not bookmark:
+            return total
+
+
+def _goal_response(client, database: str, user_id: str, document: dict) -> FinancialGoal:
+    goal = _as_record(document, FinancialGoal)
+    total = _goal_contributed_amount(client, database, user_id, document["record_id"])
+    return goal.model_copy(update={"contributed_amount": total})
+
+
 @router.get("/goals", response_model=dict)
 def list_goals(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -566,9 +682,83 @@ def list_goals(
     client, database = _connection()
     page = _list_records(client, database, current_user.id, "goals", limit, bookmark)
     return {
-        "items": [_as_record(item, FinancialGoal) for item in page["items"]],
+        "items": [
+            _goal_response(client, database, current_user.id, item)
+            for item in page["items"]
+        ],
         "next_bookmark": page["next_bookmark"],
     }
+
+
+@router.get("/goals/{goal_id}", response_model=FinancialGoal)
+def read_goal(
+    goal_id: str,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+):
+    client, database = _connection()
+    document = _require_document(client, database, current_user.id, "goals", goal_id)
+    return _goal_response(client, database, current_user.id, document)
+
+
+@router.post(
+    "/goals/{goal_id}/contributions",
+    response_model=GoalContribution,
+    summary="Record a contribution toward a financial goal",
+)
+def add_goal_contribution(
+    goal_id: str,
+    payload: GoalContributionCreate,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+):
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", idempotency_key):
+        raise HTTPException(
+            status_code=422,
+            detail="Idempotency-Key must be 8 to 128 safe characters.",
+        )
+
+    client, database = _connection()
+    goal = _require_document(client, database, current_user.id, "goals", goal_id)
+    if payload.amount <= 0:
+        raise HTTPException(status_code=422, detail="Contribution amount must be positive.")
+    if goal["data"]["currency"] != goal["data"]["currency"].upper():
+        raise HTTPException(status_code=409, detail="The goal currency is invalid.")
+
+    record_id = hashlib.sha256(
+        f"{goal_id}:{idempotency_key}".encode("utf-8")
+    ).hexdigest()[:32]
+    existing = get_user_scoped_document(
+        client, database, current_user.id, "goal_contributions", record_id
+    )
+    if existing is None:
+        data = {
+            "goal_id": goal_id,
+            "amount": str(payload.amount),
+            "currency": goal["data"]["currency"],
+            "contribution_date": payload.contribution_date.isoformat(),
+            "note": payload.note,
+        }
+        try:
+            create_user_scoped_document(
+                client,
+                database,
+                current_user.id,
+                "goal_contributions",
+                data,
+                record_id=record_id,
+            )
+            existing = _require_document(
+                client,
+                database,
+                current_user.id,
+                "goal_contributions",
+                record_id,
+            )
+        except Exception as exc:
+            if isinstance(exc, HTTPException):
+                raise
+            raise _handle_storage_error(exc) from exc
+    return _as_record(existing, GoalContribution)
 
 
 @router.patch("/goals/{goal_id}", response_model=FinancialGoal)
@@ -592,7 +782,7 @@ def update_goal(
         if isinstance(exc, HTTPException):
             raise
         raise _handle_storage_error(exc) from exc
-    return _as_record(updated, FinancialGoal)
+    return _goal_response(client, database, current_user.id, updated)
 
 
 @router.get("/analytics/summary", response_model=FinancialSummary)
