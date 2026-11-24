@@ -25,9 +25,6 @@ jobs:
       - name: Validate frontend JavaScript
         run: node --check app/static/app.js
       - name: Run lint checks
-        run: |
-          ruff check --fix app/integrations/watsonx.py
-          git diff -- app/integrations/watsonx.py
-          ruff check .
+        run: ruff check .
       - name: Run tests
         run: pytest
