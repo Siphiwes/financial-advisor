@@ -82,7 +82,7 @@ def test_privacy_delete_remains_available_when_finance_writes_are_disabled(
     monkeypatch.setattr(
         finance,
         "delete_user_data_and_account",
-        lambda user: {
+        lambda user, current_password: {
             "deleted": True,
             "deleted_record_counts": {
                 "accounts": 0,
@@ -99,7 +99,10 @@ def test_privacy_delete_remains_available_when_finance_writes_are_disabled(
     )
 
     try:
-        response = client.delete("/api/v1/privacy/data")
+        response = client.delete(
+            "/api/v1/privacy/data",
+            json={"current_password": "test-current-password"},
+        )
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
