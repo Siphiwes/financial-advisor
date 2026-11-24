@@ -250,3 +250,68 @@ class RecurringPaymentCandidate(BaseModel):
     last_seen: date
     frequency: Literal["weekly", "monthly", "irregular"]
     confidence: Literal["low", "medium"]
+
+
+DebtType = Literal["personal_loan", "credit_card", "vehicle_finance", "home_loan", "student_loan", "overdraft", "other"]
+DebtStatus = Literal["active", "paid"]
+
+
+class DebtCreate(BaseModel):
+    creditor: str = Field(min_length=1, max_length=120)
+    debt_name: str = Field(min_length=1, max_length=120)
+    debt_type: DebtType
+    original_amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
+    current_balance: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
+    monthly_payment: Decimal = Field(default=Decimal("0"), ge=0, max_digits=18, decimal_places=2)
+    interest_rate: Decimal | None = Field(default=None, ge=0, le=100, max_digits=6, decimal_places=3)
+    currency: str = Field(default="ZAR", pattern=r"^[A-Z]{3}$")
+    opened_date: date | None = None
+    due_date: date | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class DebtUpdate(BaseModel):
+    creditor: str | None = Field(default=None, min_length=1, max_length=120)
+    debt_name: str | None = Field(default=None, min_length=1, max_length=120)
+    debt_type: DebtType | None = None
+    current_balance: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    monthly_payment: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=2)
+    interest_rate: Decimal | None = Field(default=None, ge=0, le=100, max_digits=6, decimal_places=3)
+    due_date: date | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+    status: DebtStatus | None = None
+
+
+class DebtResponse(BaseModel):
+    id: str
+    creditor: str
+    debt_name: str
+    debt_type: DebtType
+    original_amount: Decimal
+    current_balance: Decimal
+    monthly_payment: Decimal
+    interest_rate: Decimal | None
+    currency: str
+    opened_date: date | None
+    due_date: date | None
+    notes: str | None
+    status: DebtStatus
+    balance_history: list[dict] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class DebtCurrencySummary(BaseModel):
+    currency: str
+    debt_count: int
+    original_total: Decimal
+    outstanding_total: Decimal
+    monthly_repayments: Decimal
+    average_monthly_income: Decimal
+    debt_to_income_percent: Decimal | None
+    balance_change: Decimal
+    trend: Literal["increasing", "decreasing", "unchanged", "insufficient_history"]
+
+
+class DebtSummaryResponse(BaseModel):
+    currencies: list[DebtCurrencySummary]
