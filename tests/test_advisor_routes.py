@@ -30,7 +30,7 @@ def test_advisor_requires_separate_ai_feature_gate(monkeypatch) -> None:
             "/api/v1/advisor/chat",
             json={
                 "question": "Explain the available summary.",
-                "consent_to_share_summary": True,
+                "consent_to_share_all_financial_records": True,
             },
         )
     finally:
@@ -50,7 +50,7 @@ def test_advisor_requires_explicit_consent_before_summary_lookup(monkeypatch) ->
             "/api/v1/advisor/chat",
             json={
                 "question": "Explain the available summary.",
-                "consent_to_share_summary": False,
+                "consent_to_share_all_financial_records": False,
             },
         )
     finally:

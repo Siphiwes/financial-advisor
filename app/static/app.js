@@ -7,6 +7,8 @@
     financeEnabled: false,
     accounts: [],
     categories: [],
+    debts: [],
+    debtSummary: null,
     selectedFile: null,
     importPreview: null,
   };
@@ -124,8 +126,19 @@
     $("finance-gate").textContent = enabled ? "Financial storage enabled" : "Financial data locked";
     $("finance-gate").className = "status-pill " + (enabled ? "status-success" : "status-warning");
     $("finance-lock-notice").classList.add("hidden");
-    ["accounts-lock","transactions-lock","budgets-lock","goals-lock","categories-lock"]
+    ["accounts-lock","transactions-lock","budgets-lock","goals-lock","categories-lock","debts-lock"]
       .forEach((id) => $(id).classList.toggle("hidden", enabled));
+    $("storage-overview-status").textContent = enabled ? "Storage enabled" : "Storage disabled";
+    $("storage-overview-status").className = "status-pill " + (enabled ? "status-success" : "status-warning");
+    const modules = [["Accounts","Account storage"],["Transactions","Transaction storage"],["Budgets","Budget storage"],["Goals","Goal storage"],["Categories","Category management storage"],["Debts","Debt storage"]];
+    const statusList = $("storage-status-list");
+    statusList.replaceChildren();
+    modules.forEach(([name, detail]) => {
+      const item = el("div", undefined, "storage-status-item");
+      item.append(el("span", name), el("strong", enabled ? "Enabled" : "Disabled"));
+      item.append(el("small", detail));
+      statusList.append(item);
+    });
     $("import-gate-message").classList.toggle("hidden", enabled);
     $("confirm-import-button").disabled = !enabled || !state.selectedFile;
     ["account-form","transaction-form","budget-form","goal-form","category-form","advisor-form"]
@@ -255,7 +268,7 @@
       suggest.type = "button";
       suggest.addEventListener("click", async () => {
         const consent = window.confirm(
-          "Send this transaction's date, description, amount and currency, plus your allowed category names, to IBM watsonx.ai for a category suggestion?"
+          "Send this transaction's full stored details, including its description, reference and account identifier, plus the associated account record and category names, to IBM watsonx.ai for a category suggestion?"
         );
         if (!consent) return;
         try {
@@ -430,6 +443,109 @@
     });
   }
 
+  function renderDebts(debts, summary) {
+    state.debts = debts || [];
+    state.debtSummary = summary || null;
+    const currencies = summary && summary.currencies ? summary.currencies : [];
+    const buildCards = (target, compact) => {
+      target.replaceChildren();
+      if (!currencies.length) {
+        const card = el("article", undefined, "metric-card");
+        card.append(el("span", "Outstanding debt"), el("strong", "No recorded debt"), el("small", "Add debts to track balances and repayments"));
+        target.append(card);
+        return;
+      }
+      currencies.forEach((item) => {
+        const outstanding = el("article", undefined, "metric-card");
+        outstanding.append(el("span", "Outstanding debt · " + item.currency));
+        outstanding.append(el("strong", money(item.outstanding_total, item.currency)));
+        outstanding.append(el("small", item.debt_count + " active debts · Original " + money(item.original_total, item.currency)));
+        if (compact) {
+          outstanding.append(el("small", "Monthly repayments " + money(item.monthly_repayments, item.currency)));
+          outstanding.append(el("small", "Average monthly income " + money(item.average_monthly_income, item.currency)));
+          outstanding.append(el("small", "Repayment-to-income " + (item.debt_to_income_percent === null ? "Not available" : Number(item.debt_to_income_percent).toFixed(1) + "%")));
+          outstanding.append(el("small", item.trend === "increasing" ? "Debt increasing" : item.trend === "decreasing" ? "Debt decreasing" : item.trend === "unchanged" ? "No change" : "Trend needs more history"));
+          target.append(outstanding);
+          return;
+        }
+        target.append(outstanding);
+        const repayment = el("article", undefined, "metric-card");
+        repayment.append(el("span", "Monthly repayments · " + item.currency));
+        repayment.append(el("strong", money(item.monthly_repayments, item.currency)));
+        repayment.append(el("small", "Average monthly income " + money(item.average_monthly_income, item.currency)));
+        target.append(repayment);
+        const ratio = el("article", undefined, "metric-card");
+        ratio.append(el("span", "Debt-to-income · " + item.currency));
+        ratio.append(el("strong", item.debt_to_income_percent === null ? "Not available" : Number(item.debt_to_income_percent).toFixed(1) + "%"));
+        ratio.append(el("small", "Monthly repayments compared with average monthly income"));
+        target.append(ratio);
+        const trend = el("article", undefined, "metric-card");
+        trend.append(el("span", "Balance trend · " + item.currency));
+        trend.append(el("strong", item.trend === "increasing" ? "Debt increasing" : item.trend === "decreasing" ? "Debt decreasing" : item.trend === "unchanged" ? "No change" : "Building history"));
+        trend.append(el("small", item.trend === "insufficient_history" ? "Update balances to establish a trend" : "Recorded change " + money(item.balance_change, item.currency)));
+        target.append(trend);
+      });
+    };
+    buildCards($("debt-summary-cards"), false);
+    buildCards($("debt-overview-cards"), true);
+    const list = $("debt-list");
+    list.replaceChildren();
+    if (!state.debts.length) list.append(el("p", "No debts recorded. Add a debt above to begin tracking.", "empty-state"));
+    state.debts.forEach((debt) => {
+      const card = el("article", undefined, "record-card");
+      const top = el("div", undefined, "record-card-top");
+      const details = el("div");
+      details.append(el("h3", debt.debt_name));
+      details.append(el("p", debt.creditor + " · " + debt.debt_type.replaceAll("_", " ") + " · " + debt.status));
+      top.append(details, el("strong", money(debt.current_balance, debt.currency)));
+      card.append(top);
+      card.append(el("p", "Original " + money(debt.original_amount, debt.currency) + " · Monthly repayment " + money(debt.monthly_payment, debt.currency) + (debt.interest_rate === null ? "" : " · Interest " + debt.interest_rate + "%"), "muted small"));
+      const actions = el("div", undefined, "record-actions");
+      const update = el("button", "Update balance", "button button-secondary");
+      update.type = "button";
+      update.addEventListener("click", async () => {
+        const value = window.prompt("Enter the latest outstanding balance", String(debt.current_balance));
+        if (value === null) return;
+        const amount = Number(value);
+        if (!Number.isFinite(amount) || amount < 0) {
+          globalMessage("Enter a valid outstanding balance.", true);
+          return;
+        }
+        try {
+          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({current_balance:amount.toFixed(2)})});
+          await loadFinanceData();
+        } catch (error) { globalMessage(error.message, true); }
+      });
+      const edit = el("button", "Edit details", "button button-secondary");
+      edit.type = "button";
+      edit.addEventListener("click", async () => {
+        const creditor = window.prompt("Creditor / lender", debt.creditor);
+        if (creditor === null) return;
+        const name = window.prompt("Debt name", debt.debt_name);
+        if (name === null) return;
+        const payment = window.prompt("Monthly repayment", String(debt.monthly_payment));
+        if (payment === null) return;
+        const rate = window.prompt("Annual interest rate (%)", debt.interest_rate === null ? "" : String(debt.interest_rate));
+        if (rate === null) return;
+        const amount = Number(payment);
+        const interest = rate.trim() ? Number(rate) : null;
+        if (!creditor.trim() || !name.trim() || !Number.isFinite(amount) || amount < 0 || (interest !== null && (!Number.isFinite(interest) || interest < 0 || interest > 100))) {
+          globalMessage("Enter valid creditor, debt name, repayment and interest values.", true);
+          return;
+        }
+        try {
+          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({creditor:creditor.trim(),debt_name:name.trim(),monthly_payment:amount.toFixed(2),interest_rate:interest===null?null:interest.toFixed(3)})});
+          await loadFinanceData();
+        } catch (error) { globalMessage(error.message, true); }
+      });
+      actions.append(update, edit);
+      card.append(actions);
+      const history = debt.balance_history || [];
+      card.append(el("p", history.length > 1 ? "Balance updates recorded: " + (history.length - 1) : "Initial balance recorded. Update it over time to track the trend.", "muted small"));
+      list.append(card);
+    });
+  }
+
   function renderSummary(summary, recurring) {
     const cards = $("summary-cards");
     cards.replaceChildren();
@@ -516,6 +632,8 @@
         api("/api/v1/transactions?limit=100"),
         api("/api/v1/budgets/progress"),
         api("/api/v1/goals"),
+        api("/api/v1/debts"),
+        api("/api/v1/analytics/debts"),
         api("/api/v1/analytics/summary"),
         api("/api/v1/analytics/recurring-payments"),
         api("/imports"),
@@ -526,8 +644,9 @@
       renderTransactions(results[1].items || []);
       renderBudgets(results[2]);
       renderGoals(results[3]);
-      renderSummary(results[4], results[5]);
-      renderImportHistory(results[6]);
+      renderDebts(results[4], results[5]);
+      renderSummary(results[6], results[7]);
+      renderImportHistory(results[8]);
       $("confirm-import-button").disabled = !state.importPreview;
     } catch (error) {
       if (error instanceof ApiError && error.status === 503) {
@@ -539,6 +658,7 @@
         renderTransactions([]);
         renderBudgets([]);
         renderGoals([]);
+        renderDebts([], null);
         renderSummary(null, []);
         return;
       }
@@ -854,6 +974,36 @@
   });
   $("refresh-goals").addEventListener("click", loadFinanceData);
 
+  $("debt-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await api("/api/v1/debts", {
+        method: "POST",
+        body: JSON.stringify({
+          creditor: $("debt-creditor").value.trim(),
+          debt_name: $("debt-name").value.trim(),
+          debt_type: $("debt-type").value,
+          original_amount: Number($("debt-original").value).toFixed(2),
+          current_balance: Number($("debt-balance").value).toFixed(2),
+          monthly_payment: Number($("debt-payment").value || 0).toFixed(2),
+          interest_rate: $("debt-rate").value ? Number($("debt-rate").value).toFixed(3) : null,
+          currency: "ZAR",
+          opened_date: $("debt-opened").value || null,
+          due_date: $("debt-due").value || null,
+          notes: $("debt-notes").value.trim() || null,
+        }),
+      });
+      event.target.reset();
+      $("debt-payment").value = "0";
+      message("debt-message", "Debt saved.", "success");
+      await loadFinanceData();
+    } catch (error) {
+      message("debt-message", error.message, "error");
+    }
+  });
+  $("refresh-debts").addEventListener("click", loadFinanceData);
+
+
   $("category-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -881,13 +1031,13 @@
     event.preventDefault();
     const answer = $("advisor-answer");
     answer.classList.remove("hidden");
-    answer.textContent = "Preparing your approved summary and contacting IBM watsonx.ai...";
+    answer.textContent = "Preparing your complete approved financial records and contacting IBM watsonx.ai...";
     try {
       const result = await api("/api/v1/advisor/chat", {
         method: "POST",
         body: JSON.stringify({
           question: $("advisor-question").value.trim(),
-          consent_to_share_summary: true,
+          consent_to_share_all_financial_records: true,
         }),
       });
       answer.textContent = result.answer + "\n\nData shared: " + result.data_shared.join("; ") + ".";

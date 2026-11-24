@@ -31,6 +31,7 @@ from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     CategorySummary,
     CurrencySummary,
+    DebtSummaryResponse,
     FinancialSummaryResponse,
     FNBImportCommitResponse,
 )
@@ -871,6 +872,161 @@ def add_goal_contribution(user: AuthenticatedUser, goal_id: str, payload) -> dic
     return _record_view(_update_record(user.id, "goals", goal_id, data))
 
 
+
+
+def create_debt(user: AuthenticatedUser, payload) -> dict:
+    """Create a debt record and its first dated balance snapshot."""
+    original = payload.original_amount
+    balance = payload.current_balance
+    if balance == 0 and payload.monthly_payment > 0:
+        raise FinanceValidationError("A paid-off debt cannot have a monthly repayment.")
+    data = {
+        "creditor": payload.creditor.strip(),
+        "debt_name": payload.debt_name.strip(),
+        "debt_type": payload.debt_type,
+        "original_amount": _decimal_text(original),
+        "current_balance": _decimal_text(balance),
+        "monthly_payment": _decimal_text(payload.monthly_payment),
+        "interest_rate": _decimal_text(payload.interest_rate),
+        "currency": payload.currency,
+        "opened_date": payload.opened_date.isoformat() if payload.opened_date else None,
+        "due_date": payload.due_date.isoformat() if payload.due_date else None,
+        "notes": payload.notes,
+        "status": "paid" if balance == 0 else "active",
+        "balance_history": [{"date": date.today().isoformat(), "balance": _decimal_text(balance)}],
+    }
+    return _record_view(_create_record(user.id, "debts", data))
+
+
+def list_debts(user: AuthenticatedUser) -> list[dict]:
+    """List active and paid debts owned by the current user."""
+    items, _ = _list_records(user.id, "debts", limit=1000)
+    return sorted(
+        items,
+        key=lambda item: (
+            item.get("status") == "paid",
+            item.get("creditor", "").casefold(),
+        ),
+    )
+
+
+def update_debt(user: AuthenticatedUser, debt_id: str, changes: dict) -> dict:
+    """Update a debt and append a snapshot whenever its outstanding balance changes."""
+    document = _read_record(user.id, "debts", debt_id)
+    data = dict(document["data"])
+    old_balance = Decimal(str(data.get("current_balance", "0")))
+    new_balance = changes.get("current_balance", old_balance)
+    for key, value in changes.items():
+        if key == "current_balance":
+            continue
+        if value is None and key != "due_date":
+            continue
+        data[key] = value.isoformat() if isinstance(value, date) else (
+            _decimal_text(value) if isinstance(value, Decimal) else value
+        )
+    if new_balance is not None and new_balance != old_balance:
+        data["current_balance"] = _decimal_text(new_balance)
+        history = list(data.get("balance_history") or [])
+        if len(history) >= 2000:
+            raise FinanceValidationError("This debt's balance history reached its record limit.")
+        history.append({"date": date.today().isoformat(), "balance": _decimal_text(new_balance)})
+        data["balance_history"] = history
+        data["status"] = "paid" if new_balance == 0 else "active"
+    if data.get("current_balance") == "0":
+        data["monthly_payment"] = "0"
+        data["status"] = "paid"
+    return _record_view(_update_record(user.id, "debts", debt_id, data))
+
+
+def debt_summary(user: AuthenticatedUser) -> DebtSummaryResponse:
+    """Summarise debt, repayments, income coverage and recorded balance movement."""
+    debts = list_debts(user)
+    transactions, capped = _list_all_records(user.id, "transactions")
+    if capped:
+        raise FinanceValidationError(
+            "Debt-to-income analysis requires a complete transaction history."
+        )
+    categories = {
+        item["name"].casefold(): item["kind"] for item in list_categories(user)
+    }
+    today = date.today()
+    cutoff = today - timedelta(days=90)
+    income_by_currency: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
+    for item in transactions:
+        if item.get("is_deleted"):
+            continue
+        item_date = date.fromisoformat(item["transaction_date"])
+        amount = Decimal(str(item["amount"]))
+        kind = categories.get((item.get("category") or "").casefold())
+        if cutoff <= item_date <= today and amount > 0 and kind != "transfer":
+            income_by_currency[item["currency"]] += amount
+
+    currencies = sorted({item["currency"] for item in debts} | set(income_by_currency))
+    summaries = []
+    for currency in currencies:
+        group = [item for item in debts if item["currency"] == currency]
+        active = [item for item in group if item.get("status") == "active"]
+        original_total = sum(
+            (Decimal(str(item["original_amount"])) for item in group),
+            Decimal("0"),
+        )
+        outstanding = sum((Decimal(str(item["current_balance"])) for item in active), Decimal("0"))
+        repayments = sum((Decimal(str(item["monthly_payment"])) for item in active), Decimal("0"))
+        monthly_income = income_by_currency[currency] / Decimal("3")
+        debt_ratio = repayments / monthly_income * Decimal("100") if monthly_income > 0 else None
+        balance_change = Decimal("0")
+        has_history = False
+        for item in group:
+            history = item.get("balance_history") or []
+            if len(history) >= 2:
+                has_history = True
+                latest_balance = Decimal(str(history[-1]["balance"]))
+                previous_balance = Decimal(str(history[-2]["balance"]))
+                balance_change += latest_balance - previous_balance
+        trend = (
+            "increasing" if balance_change > 0 else
+            "decreasing" if balance_change < 0 else
+            "unchanged" if has_history else
+            "insufficient_history"
+        )
+        summaries.append({
+            "currency": currency,
+            "debt_count": len(active),
+            "original_total": original_total,
+            "outstanding_total": outstanding,
+            "monthly_repayments": repayments,
+            "average_monthly_income": monthly_income,
+            "debt_to_income_percent": debt_ratio,
+            "balance_change": balance_change,
+            "trend": trend,
+        })
+    return DebtSummaryResponse(currencies=summaries)
+
+
+def full_financial_context(user: AuthenticatedUser) -> dict:
+    """Return complete saved finance records for an explicitly consented AI request."""
+    collections = {
+        "accounts": 1000,
+        "transactions": 10000,
+        "categories": 1000,
+        "budgets": 1000,
+        "goals": 1000,
+        "debts": 1000,
+        "imports": 1000,
+    }
+    data = {}
+    for collection, limit in collections.items():
+        records, has_more = _list_records(user.id, collection, limit=limit)
+        if has_more:
+            raise FinanceValidationError(
+                f"The {collection} collection exceeds the complete AI context limit. "
+                "No records were omitted."
+            )
+        data[collection] = records
+    data["financial_summary"] = financial_summary(user).model_dump(mode="json")
+    return data
+
+
 def _add_months(value: date, months: int) -> date:
     month_index = value.year * 12 + value.month - 1 + months
     year, zero_based_month = divmod(month_index, 12)
@@ -1023,6 +1179,7 @@ _PRIVACY_COLLECTIONS = (
     "categories",
     "budgets",
     "goals",
+    "debts",
     "imports",
     "audit",
 )
