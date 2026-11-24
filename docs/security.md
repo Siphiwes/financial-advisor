@@ -36,8 +36,8 @@
 
 - FINANCIAL_AI_ENABLED defaults to false and the AI route also requires FINANCIAL_DATA_ENABLED.
 - The AI route requires explicit per-request consent before calling IBM watsonx.ai.
-- Only the user's question and an aggregate summary of income, expenses, transfers, cash flow, category totals and date range are sent.
-- Raw transaction rows, transaction descriptions, references, account IDs and uploaded statement files are excluded.
+- Financial chat sends the user's question and an aggregate summary of income, expenses, transfers, cash flow, category totals and date range.
+- Transaction-category suggestions send only one user-selected transaction's date, description, amount and currency plus the active category names/types, after separate explicit consent. Account IDs, references and uploaded statement files are excluded. The suggestion is validated against allowed categories and is not applied automatically.
 - The current chat route does not persist questions or responses.
 - Never place secrets or financial information in provider error logs.
 - Review provider region, project permissions, retention and applicable contractual/privacy terms before enabling this integration.
