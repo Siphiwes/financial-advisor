@@ -45,6 +45,10 @@ class FinanceValidationError(ValueError):
     """Raised when a financial operation violates a business rule."""
 
 
+class FinanceAuthorizationError(PermissionError):
+    """Raised when an account owner fails a required re-authentication check."""
+
+
 def _connection():
     return get_cloudant_client(), get_database_name()
 
@@ -1027,7 +1031,7 @@ def delete_user_data_and_account(user: AuthenticatedUser, current_password: str)
         or not user_document.get("password_hash")
         or not verify_password(current_password, user_document["password_hash"])
     ):
-        raise FinanceValidationError(
+        raise FinanceAuthorizationError(
             "The current password is incorrect or the account could not be verified."
         )
 
