@@ -23,16 +23,19 @@ from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     CategorySummary,
     CurrencySummary,
-    FinancialSummaryResponse,
     FNBImportCommitResponse,
+    FinancialSummaryResponse,
 )
 from app.services.fnb_csv import FNBStatement
+
 
 class FinanceRecordNotFoundError(LookupError):
     """Raised when a financial record is absent or belongs to another user."""
 
+
 class FinanceValidationError(ValueError):
     """Raised when a financial operation violates a business rule."""
+
 
 def _connection():
     return get_cloudant_client(), get_database_name()
@@ -426,7 +429,7 @@ def commit_fnb_import(
 
     content_hash = hashlib.sha256(original_content).hexdigest()
     batch_id = hashlib.sha256(
-        f"{user.id}|{account_id}|{content_hash}".encode("utf-8")
+        f"{user.id}|{account_id}|{content_hash}".encode()
     ).hexdigest()[:32]
     client, database = _connection()
     batch_document = get_user_scoped_document(
