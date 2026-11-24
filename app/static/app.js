@@ -600,7 +600,7 @@
       $("registration-invite").value = "";
       $("register-panel").classList.add("hidden");
       $("login-panel").classList.remove("hidden");
-      message("login-message", "Account created. Sign in with your new password.", "success");
+      message("login-message", "Account created. Check your email for the verification link before signing in.", "success");
     } catch (error) {
       message("register-message", error.message, "error");
     } finally {
@@ -631,8 +631,12 @@
   });
 
   $("resend-verification-button").addEventListener("click", async () => {
-    const email = window.prompt("Enter the email address for your account:", $("email").value.trim());
-    if (!email) return;
+    const email = $("email").value.trim();
+    if (!email) {
+      message("login-message", "Enter your email address above first.", "error");
+      $("email").focus();
+      return;
+    }
     message("login-message", "Requesting a verification email...");
     try {
       const result = await api("/auth/email/resend", {
@@ -646,8 +650,12 @@
   });
 
   $("forgot-password-button").addEventListener("click", async () => {
-    const email = window.prompt("Enter the email address for your account:", $("email").value.trim());
-    if (!email) return;
+    const email = $("email").value.trim();
+    if (!email) {
+      message("login-message", "Enter your email address above first.", "error");
+      $("email").focus();
+      return;
+    }
     message("login-message", "Requesting a password reset...");
     try {
       const result = await api("/auth/password/reset/request", {
