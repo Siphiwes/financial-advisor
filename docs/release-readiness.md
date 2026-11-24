@@ -14,6 +14,7 @@ This checklist is the deployment gate for the first complete release. A feature 
 - Recurring-payment candidates derived from the user's saved transaction history.
 - Consent-based watsonx.ai financial question answering using aggregated figures.
 - Consent-based single-transaction category suggestions. Suggestions are validated against the user's category list and are not applied automatically.
+- One-time email verification and password recovery using expiring tokens; TLS SMTP delivery is configured for personal Gmail, pending live delivery verification.
 - User data export, password-confirmed deletion and retryable account deletion.
 - User-scoped minimal audit events for financial record creation, update and FNB import.
 - Security response headers and no-store caching for private API responses.
@@ -68,8 +69,7 @@ Keep FINANCIAL_AI_ENABLED=false until those checks pass.
 
 The repository has working foundations for account and data controls, but these items remain incomplete or require a production review:
 
-- Email verification and verified-email change.
-- Email-based password recovery and account recovery.
+- Verified-email change and account recovery beyond the implemented email verification/password-reset flow.
 - Multi-factor authentication.
 - Registration/login rate limiting and automated abuse protection at the edge.
 - Durable, tamper-resistant audit logging and alerting. The current Cloudant audit events are best-effort.
