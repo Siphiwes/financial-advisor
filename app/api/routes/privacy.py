@@ -58,8 +58,10 @@ def delete_my_data(
             current_user,
             payload.current_password,
         )
-    except finance.FinanceValidationError as exc:
+    except finance.FinanceAuthorizationError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except finance.FinanceValidationError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except finance.FinanceRecordNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
