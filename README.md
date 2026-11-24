@@ -13,7 +13,8 @@ An AI-powered personal finance application for South African users. It is design
 - Authenticated TLS SMTP email delivery, configured for personal Gmail through an IBM Code Engine secret.
 - Password change and all-session revocation after current-password verification.
 - Authenticated current-user endpoint and user-scoped Cloudant document helpers.
-- FNB South Africa CSV parser with metadata-row detection and authenticated preview endpoint (20 MB limit).\n- FNB South Africa PDF transaction-table parser, authenticated preview and explicit confirmed-import endpoints (20 MB limit).
+- FNB South Africa CSV parser with metadata-row detection and authenticated preview endpoint (20 MB limit).
+- FNB South Africa PDF transaction-table parser, authenticated preview and explicit confirmed-import endpoints (20 MB limit).
 - Financial account, transaction, category, budget and goal API routes.
 - Transaction correction history, soft deletion and deterministic financial summaries.
 - Explicit FNB import confirmation, account matching and transaction-level duplicate detection.
@@ -84,7 +85,8 @@ All routes require authentication. Persistent finance routes also require FINANC
 - /api/v1/analytics/summary: deterministic income, expense, transfer and net cash-flow totals, grouped by currency.
 - /api/v1/analytics/recurring-payments: identify possible recurring debits from the user's transaction history.
 - POST /imports/fnb/csv/preview: parse an FNB CSV and return a limited preview without saving transactions.
-- POST /imports/fnb/csv/confirm: explicitly confirm and persist a validated FNB CSV against a selected, user-owned FNB account.\n- POST /imports/fnb/pdf/preview and /imports/fnb/pdf/confirm: preview and explicitly import a validated FNB PDF against a selected, user-owned FNB account.
+- POST /imports/fnb/csv/confirm: explicitly confirm and persist a validated FNB CSV against a selected, user-owned FNB account.
+- POST /imports/fnb/pdf/preview and /imports/fnb/pdf/confirm: preview and explicitly import a validated FNB PDF against a selected, user-owned FNB account.
 - /imports: view import metadata and status.
 
 FNB imports require the account's last four digits to match the statement. The import process stores a file hash and import metadata, not the original statement. Stable transaction identifiers prevent the same transaction from being stored again when statements overlap. A completed import is bound to one user and one FNB account.
