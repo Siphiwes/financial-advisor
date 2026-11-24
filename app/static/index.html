@@ -173,6 +173,13 @@
           </form>
           <div id="import-gate-message" class="notice notice-warning hidden">Persistent imports are disabled until the release safeguards are complete. You can preview the statement, but cannot save it yet.</div>
         </section>
+        <article class="panel privacy-card">
+          <div class="panel-heading">
+            <div><h3>Import history</h3><p class="muted">Confirmed FNB statement imports for this account</p></div>
+            <button id="refresh-import-history" class="button button-secondary" type="button">Refresh</button>
+          </div>
+          <div id="import-history-list" class="empty-state">Import history is available after financial data storage is enabled.</div>
+        </article>
       </section>
 
       <section id="budgets-view" class="view hidden">
