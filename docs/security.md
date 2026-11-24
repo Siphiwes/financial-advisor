@@ -8,6 +8,7 @@
 - Keep Cloudant diagnostics credentials separate from application credentials.
 - Keep JWT_SECRET_KEY and AUTH_EMAIL_INDEX_KEY independent, random and at least 32 bytes long.
 - Keep REGISTRATION_INVITE_CODE private. Registration is disabled when it is not configured.
+- Store WATSONX_APIKEY only as a Code Engine secret.
 - Rotate credentials if exposed. Do not paste secrets into issues, logs or chat.
 
 ## Authentication implemented
@@ -30,7 +31,16 @@
 - Stable transaction identifiers provide retry-safe duplicate detection across overlapping statements.
 - Transaction corrections preserve the originally imported values and record before/after changes.
 - Amounts use decimal strings in storage and Decimal calculations.
-- API and test fixtures must not contain fabricated financial histories or synthetic transaction amounts.
+
+## AI data handling
+
+- FINANCIAL_AI_ENABLED defaults to false and the AI route also requires FINANCIAL_DATA_ENABLED.
+- The AI route requires explicit per-request consent before calling IBM watsonx.ai.
+- Only the user's question and an aggregate summary of income, expenses, transfers, cash flow, category totals and date range are sent.
+- Raw transaction rows, transaction descriptions, references, account IDs and uploaded statement files are excluded.
+- The current chat route does not persist questions or responses.
+- Never place secrets or financial information in provider error logs.
+- Review provider region, project permissions, retention and applicable contractual/privacy terms before enabling this integration.
 
 ## Remaining release blockers
 
