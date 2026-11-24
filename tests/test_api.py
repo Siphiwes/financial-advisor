@@ -19,3 +19,11 @@ def test_health_returns_healthy() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
+
+
+
+def test_web_workspace_is_served() -> None:
+    response = client.get("/app")
+
+    assert response.status_code == 200
+    assert "Financial Advisor" in response.text
