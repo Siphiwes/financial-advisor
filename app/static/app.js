@@ -123,7 +123,7 @@
     state.financeEnabled = enabled;
     $("finance-gate").textContent = enabled ? "Financial storage enabled" : "Financial data locked";
     $("finance-gate").className = "status-pill " + (enabled ? "status-success" : "status-warning");
-    $("finance-lock-notice").classList.toggle("hidden", enabled);
+    $("finance-lock-notice").classList.add("hidden");
     ["accounts-lock","transactions-lock","budgets-lock","goals-lock","categories-lock"]
       .forEach((id) => $(id).classList.toggle("hidden", enabled));
     $("import-gate-message").classList.toggle("hidden", enabled);
@@ -409,7 +409,7 @@
       const card = el("article", undefined, "record-card");
       const top = el("div", undefined, "record-card-top");
       const details = el("div");
-      details.append(el("h3", "FNB CSV import"));
+      details.append(el("h3", (item.source || "FNB_CSV").replaceAll("_", " ") + " import"));
       details.append(el("p", "Statement date: " + (item.statement_date || "Not supplied")));
       top.append(details, el("span", item.status, "status-pill"));
       card.append(top);
@@ -475,7 +475,7 @@
     state.importPreview = preview;
     const isPdfPreview = preview.source_format === "FNB PDF";
     $("pdf-preview-notice").classList.toggle("hidden", !isPdfPreview);
-    $("import-confirm-form").classList.toggle("hidden", isPdfPreview);
+    $("import-confirm-form").classList.remove("hidden");
     $("import-preview").classList.remove("hidden");
     $("import-metadata").textContent = [
       preview.statement_date ? "Statement date: " + preview.statement_date : "Statement date not supplied",
@@ -788,7 +788,7 @@
 
   $("import-confirm-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!state.selectedFile || !state.importPreview || state.importPreview.source_format === "FNB PDF") return;
+    if (!state.selectedFile || !state.importPreview) return;
     if (!$("import-consent").checked) {
       message("confirm-import-message", "Explicit confirmation is required.", "error"); return;
     }
@@ -798,7 +798,9 @@
     form.append("file", state.selectedFile);
     message("confirm-import-message", "Importing transactions...");
     try {
-      const result = await api("/imports/fnb/csv/confirm", { method: "POST", body: form });
+      const extension = state.selectedFile.name.toLowerCase().split(".").pop();
+      const confirmPath = extension === "pdf" ? "/imports/fnb/pdf/confirm" : "/imports/fnb/csv/confirm";
+      const result = await api(confirmPath, { method: "POST", body: form });
       message("confirm-import-message",
         result.message + " Imported: " + result.imported_count + ". Duplicates: " + result.duplicate_count,
         "success");

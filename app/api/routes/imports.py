@@ -203,6 +203,68 @@ async def confirm_fnb_csv_import(
     except FinanceValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+@router.post(
+    "/fnb/pdf/confirm",
+    response_model=FNBImportCommitResponse,
+    summary="Confirm and import an FNB PDF statement into the selected account",
+    dependencies=[Depends(require_financial_data_enabled)],
+)
+async def confirm_fnb_pdf_import(
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    account_id: Annotated[
+        str,
+        Form(description="ID of the authenticated user's FNB account"),
+    ],
+    consent: Annotated[
+        bool,
+        Form(description="Must be true to confirm persistent transaction storage"),
+    ],
+    file: Annotated[
+        UploadFile,
+        File(description="FNB transaction-history PDF statement"),
+    ],
+) -> FNBImportCommitResponse:
+    """Persist a confirmed FNB PDF after parsing and account matching."""
+    try:
+        if consent is not True:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Explicit confirmation is required before importing transactions.",
+            )
+        if not file.filename or not file.filename.casefold().endswith(".pdf"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Upload an FNB PDF file with a .pdf extension.",
+            )
+        content = await file.read(MAX_CSV_BYTES + 1)
+        if len(content) > MAX_CSV_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="The uploaded PDF file exceeds the 20 MB limit.",
+            )
+        statement = parse_fnb_pdf(content)
+    except FNBPDFValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    finally:
+        await file.close()
+
+    try:
+        return commit_fnb_import(
+            current_user,
+            account_id,
+            statement,
+            content,
+            source_format="FNB_PDF",
+        )
+    except FinanceRecordNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="The selected account was not found.") from exc
+    except FinanceValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.get(
     "",
     response_model=list[ImportRecordResponse],

@@ -93,9 +93,7 @@
       </nav>
 
       <section id="dashboard-view" class="view">
-        <div id="finance-lock-notice" class="notice notice-warning">
-          Your account is signed in, but financial data storage is disabled. You can preview an FNB statement. Accounts and saved financial information will become available after the release safeguards are completed.
-        </div>
+        <div id="finance-lock-notice" class="notice notice-warning hidden" aria-hidden="true"></div>
         <div id="summary-cards" class="metric-grid">
           <article class="metric-card"><span>Income</span><strong>Not available</strong><small>Awaiting saved transactions</small></article>
           <article class="metric-card"><span>Expenses</span><strong>Not available</strong><small>Awaiting saved transactions</small></article>
@@ -177,7 +175,7 @@
         <section id="import-preview" class="panel hidden">
           <div class="panel-heading"><div><h3>Statement preview</h3><p id="import-metadata" class="muted"></p></div><span id="import-count" class="status-pill"></span></div>
           <div id="import-transactions" class="table-wrap"></div>
-          <div id="pdf-preview-notice" class="notice hidden">PDF extraction preview only. The PDF is processed in memory and is not saved. Transaction importing from PDF will be enabled after the extracted layout is verified against your FNB statement.</div>
+          <div id="pdf-preview-notice" class="notice hidden">Review the extracted dates, descriptions and signed amounts before confirming the import. The original statement file is not retained.</div>
           <form id="import-confirm-form" class="confirm-import">
             <label for="import-account">Import into account</label><select id="import-account" required><option value="">Select matching FNB account</option></select>
             <label class="checkbox-row"><input id="import-consent" type="checkbox" required> I confirm that this is my statement and authorise its transactions to be saved to my account.</label>
