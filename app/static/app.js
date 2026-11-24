@@ -114,12 +114,13 @@
       .forEach((id) => $(id).classList.toggle("hidden", enabled));
     $("import-gate-message").classList.toggle("hidden", enabled);
     $("confirm-import-button").disabled = !enabled || !state.selectedFile;
-    ["account-form","transaction-form","budget-form","goal-form","category-form"]
+    ["account-form","transaction-form","budget-form","goal-form","category-form","advisor-form"]
       .forEach((id) => {
-        $(id).querySelectorAll("input,select,button").forEach((control) => {
+        $(id).querySelectorAll("input,select,textarea,button").forEach((control) => {
           control.disabled = !enabled;
         });
       });
+    $("advisor-submit").disabled = !enabled || !$("advisor-consent").checked;
   }
 
   function switchView(id) {
