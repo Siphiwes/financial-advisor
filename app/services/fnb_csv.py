@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-MAX_CSV_BYTES = 5 * 1024 * 1024
+MAX_CSV_BYTES = 20 * 1024 * 1024
 MAX_TRANSACTIONS = 10_000
 
 
@@ -182,7 +182,7 @@ def parse_fnb_csv(content: bytes) -> FNBStatement:
     if not content:
         raise FNBCSVValidationError("The uploaded CSV file is empty.")
     if len(content) > MAX_CSV_BYTES:
-        raise FNBCSVValidationError("The uploaded CSV file exceeds the 5 MB limit.")
+        raise FNBCSVValidationError("The uploaded CSV file exceeds the 20 MB limit.")
 
     try:
         text = content.decode("utf-8-sig")
