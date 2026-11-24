@@ -1,7 +1,7 @@
 """Privacy-controlled AI financial question answering."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -67,7 +67,7 @@ def update_ai_consent(
 ):
     client = get_cloudant_client()
     database = get_database_name()
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     document = _consent_document(client, database, current_user.id)
     data = {
         **(document["data"] if document else {}),
@@ -135,7 +135,10 @@ def ask_financial_advisor(
     if not consent or consent["data"].get("watsonx_aggregate_data_consent") is not True:
         raise HTTPException(
             status_code=403,
-            detail="Explicit consent is required before sending financial summaries to IBM watsonx.ai.",
+            detail=(
+                "Explicit consent is required before sending financial summaries "
+                "to IBM watsonx.ai."
+            ),
         )
 
     summary = financial_summary(
