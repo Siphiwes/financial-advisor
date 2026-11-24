@@ -101,8 +101,10 @@
     state.importPreview = null;
     $("workspace").classList.add("hidden");
     $("login-panel").classList.remove("hidden");
+    $("register-panel").classList.add("hidden");
     $("logout-button").classList.add("hidden");
     message("login-message", "", "");
+    message("register-message", "", "");
   }
 
   function setGate(enabled) {
@@ -488,6 +490,45 @@
     switchView("dashboard-view");
   }
 
+  $("show-register").addEventListener("click", () => {
+    $("login-panel").classList.add("hidden");
+    $("register-panel").classList.remove("hidden");
+    message("register-message", "", "");
+  });
+
+  $("back-to-login").addEventListener("click", () => {
+    $("register-panel").classList.add("hidden");
+    $("login-panel").classList.remove("hidden");
+    message("login-message", "", "");
+  });
+
+  $("register-panel").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    message("register-message", "Creating account...");
+    try {
+      await api("/auth/register", {
+        method: "POST",
+        headers: {
+          "X-Registration-Invite": $("registration-invite").value,
+        },
+        body: JSON.stringify({
+          email: $("register-email").value.trim(),
+          password: $("register-password").value,
+        }),
+      });
+      $("email").value = $("register-email").value.trim();
+      $("register-password").value = "";
+      $("registration-invite").value = "";
+      $("register-panel").classList.add("hidden");
+      $("login-panel").classList.remove("hidden");
+      message("login-message", "Account created. Sign in with your new password.", "success");
+    } catch (error) {
+      message("register-message", error.message, "error");
+    } finally {
+      $("registration-invite").value = "";
+    }
+  });
+
   $("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     message("login-message", "Signing in...");
@@ -690,6 +731,68 @@
       answer.textContent = result.answer + "\n\nData shared: " + result.data_shared.join("; ") + ".";
     } catch (error) {
       answer.textContent = error.message;
+    }
+  });
+
+  async function loadAuditHistory() {
+    const target = $("audit-list");
+    target.replaceChildren();
+    try {
+      const events = await api("/api/v1/privacy/audit?limit=100");
+      if (!events.length) {
+        target.append(el("p", "No recent account activity is available.", "empty-state"));
+        return;
+      }
+      events.forEach((item) => {
+        const row = el("div", undefined, "key-value");
+        row.append(
+          el("span", item.action + " · " + item.resource_type),
+          el("strong", item.occurred_at || item.created_at || "")
+        );
+        target.append(row);
+      });
+    } catch (error) {
+      target.append(el("p", error.message, "empty-state"));
+    }
+  }
+
+  $("refresh-audit-button").addEventListener("click", loadAuditHistory);
+
+  $("password-change-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    message("password-change-message", "Changing password...");
+    try {
+      const result = await api("/auth/password/change", {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: $("password-current").value,
+          new_password: $("password-new").value,
+        }),
+      });
+      $("password-current").value = "";
+      $("password-new").value = "";
+      signOut();
+      message("login-message", result.message, "success");
+    } catch (error) {
+      message("password-change-message", error.message, "error");
+    }
+  });
+
+  $("revoke-sessions-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    message("revoke-sessions-message", "Invalidating existing sessions...");
+    try {
+      const result = await api("/auth/sessions/revoke", {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: $("revoke-current-password").value,
+        }),
+      });
+      $("revoke-current-password").value = "";
+      signOut();
+      message("login-message", result.message + " Sign in again on this device.", "success");
+    } catch (error) {
+      message("revoke-sessions-message", error.message, "error");
     }
   });
 
