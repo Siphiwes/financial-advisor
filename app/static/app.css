@@ -174,3 +174,13 @@ tr:last-child td { border-bottom: 0; }
   .panel { padding: 17px; }
   .section-heading { align-items: flex-start; }
 }
+
+
+.privacy-card { margin-bottom: 14px; }
+.privacy-card p { max-width: 780px; }
+.privacy-danger { border-color: #e8c9c9; }
+.privacy-danger h3 { color: #922f2f; }
+.privacy-danger p { max-width: 800px; color: #755050; font-size: 13px; }
+.privacy-danger input { max-width: 220px; margin-bottom: 12px; }
+.button-danger { background: #a33b3b; color: #fff; }
+.button-danger:hover:not(:disabled) { background: #862d2d; }
