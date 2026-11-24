@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class AdvisorChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
-    consent_to_share_summary: bool = False
+    consent_to_share_all_financial_records: bool = False
     from_date: date | None = None
     to_date: date | None = None
 
