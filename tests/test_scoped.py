@@ -9,6 +9,7 @@ from app.database.scoped import (
     create_user_scoped_document,
     delete_user_scoped_document,
     get_user_scoped_document,
+    list_user_scoped_documents,
     update_user_scoped_document,
 )
 
@@ -60,6 +61,19 @@ class FakeCloudantClient:
         assert self.documents[doc_id]["_rev"] == rev
         del self.documents[doc_id]
         return FakeResponse({"ok": True, "id": doc_id, "rev": "2-test"})
+
+    def post_all_docs(self, *, db: str, **parameters) -> FakeResponse:
+        assert db == "finance-advisor-db"
+        prefix = parameters["start_key"]
+        documents = [
+            document
+            for document_id, document in sorted(self.documents.items())
+            if document_id.startswith(prefix)
+        ]
+        start = parameters.get("skip", 0)
+        limit = parameters.get("limit", len(documents))
+        page = documents[start : start + limit]
+        return FakeResponse({"rows": [{"doc": document} for document in page]})
 
 
 @pytest.fixture
@@ -173,3 +187,65 @@ def test_reserved_collection_is_rejected(client: FakeCloudantClient) -> None:
         create_user_scoped_document(
             client, "finance-advisor-db", str(uuid4()), "users", {"email": "private"}
         )
+
+
+
+def test_scoped_list_only_returns_owner_collection_and_reports_more(
+    client: FakeCloudantClient,
+) -> None:
+    owner_id = str(uuid4())
+    another_user_id = str(uuid4())
+
+    create_user_scoped_document(
+        client,
+        "finance-advisor-db",
+        owner_id,
+        "transactions",
+        {"ownership_check": "owner-first"},
+    )
+    create_user_scoped_document(
+        client,
+        "finance-advisor-db",
+        owner_id,
+        "transactions",
+        {"ownership_check": "owner-second"},
+    )
+    create_user_scoped_document(
+        client,
+        "finance-advisor-db",
+        another_user_id,
+        "transactions",
+        {"ownership_check": "other-owner"},
+    )
+    create_user_scoped_document(
+        client,
+        "finance-advisor-db",
+        owner_id,
+        "budgets",
+        {"ownership_check": "other-collection"},
+    )
+
+    first_page, first_has_more = list_user_scoped_documents(
+        client,
+        "finance-advisor-db",
+        owner_id,
+        "transactions",
+        limit=1,
+    )
+    second_page, second_has_more = list_user_scoped_documents(
+        client,
+        "finance-advisor-db",
+        owner_id,
+        "transactions",
+        limit=1,
+        offset=1,
+    )
+
+    assert len(first_page) == 1
+    assert first_has_more is True
+    assert len(second_page) == 1
+    assert second_has_more is False
+    assert {
+        first_page[0]["data"]["ownership_check"],
+        second_page[0]["data"]["ownership_check"],
+    } == {"owner-first", "owner-second"}
