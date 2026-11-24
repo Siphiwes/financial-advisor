@@ -54,6 +54,7 @@ def create_user(client, database: str, email: str, password: str) -> dict:
         "email": normalized_email,
         "password_hash": hash_password(password),
         "is_active": True,
+        "email_verified": False,
         "auth_version": 1,
         "created_at": now,
         "updated_at": now,
