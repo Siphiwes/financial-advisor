@@ -23,31 +23,25 @@ from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import (
     CategorySummary,
     CurrencySummary,
-    FNBImportCommitResponse,
     FinancialSummaryResponse,
+    FNBImportCommitResponse,
 )
 from app.services.fnb_csv import FNBStatement
-
 
 class FinanceRecordNotFoundError(LookupError):
     """Raised when a financial record is absent or belongs to another user."""
 
-
 class FinanceValidationError(ValueError):
     """Raised when a financial operation violates a business rule."""
-
 
 def _connection():
     return get_cloudant_client(), get_database_name()
 
-
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
-
 def _decimal_text(value: Decimal | None) -> str | None:
     return format(value, "f") if value is not None else None
-
 
 def _record_view(document: dict) -> dict:
     return {
@@ -57,7 +51,6 @@ def _record_view(document: dict) -> dict:
         "updated_at": document["updated_at"],
     }
 
-
 def _read_record(user_id: str, collection: str, record_id: str) -> dict:
     client, database = _connection()
     document = get_user_scoped_document(
@@ -66,7 +59,6 @@ def _read_record(user_id: str, collection: str, record_id: str) -> dict:
     if document is None:
         raise FinanceRecordNotFoundError("The requested record was not found.")
     return document
-
 
 def _create_record(
     user_id: str,
@@ -86,7 +78,6 @@ def _create_record(
     )
     return _read_record(user_id, collection, saved_id)
 
-
 def _update_record(user_id: str, collection: str, record_id: str, data: dict) -> dict:
     client, database = _connection()
     try:
@@ -98,7 +89,6 @@ def _update_record(user_id: str, collection: str, record_id: str, data: dict) ->
             "The requested record was not found."
         ) from exc
     return _read_record(user_id, collection, record_id)
-
 
 def _list_records(
     user_id: str,
@@ -118,7 +108,6 @@ def _list_records(
     )
     return [_record_view(document) for document in documents], has_more
 
-
 def _list_all_records(user_id: str, collection: str) -> tuple[list[dict], bool]:
     return _list_records(
         user_id,
@@ -127,13 +116,11 @@ def _list_all_records(user_id: str, collection: str) -> tuple[list[dict], bool]:
         offset=0,
     )
 
-
 def get_financial_account(user_id: str, account_id: str, *, active: bool = True) -> dict:
     account = _record_view(_read_record(user_id, "accounts", account_id))
     if active and not account.get("is_active", True):
         raise FinanceRecordNotFoundError("The requested account is inactive.")
     return account
-
 
 def create_financial_account(user: AuthenticatedUser, payload) -> dict:
     data = {
@@ -146,18 +133,15 @@ def create_financial_account(user: AuthenticatedUser, payload) -> dict:
     }
     return _record_view(_create_record(user.id, "accounts", data))
 
-
 def list_financial_accounts(user: AuthenticatedUser) -> list[dict]:
     items, _ = _list_records(user.id, "accounts", limit=500)
     return [item for item in items if item.get("is_active", True)]
-
 
 def update_financial_account(user: AuthenticatedUser, account_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "accounts", account_id)
     data = dict(document["data"])
     data.update({key: value for key, value in changes.items() if value is not None})
     return _record_view(_update_record(user.id, "accounts", account_id, data))
-
 
 def create_manual_transaction(user: AuthenticatedUser, payload) -> dict:
     account = get_financial_account(user.id, payload.account_id)
@@ -191,13 +175,11 @@ def create_manual_transaction(user: AuthenticatedUser, payload) -> dict:
     }
     return _record_view(_create_record(user.id, "transactions", data))
 
-
 def get_transaction(user: AuthenticatedUser, transaction_id: str) -> dict:
     document = _read_record(user.id, "transactions", transaction_id)
     if document["data"].get("is_deleted"):
         raise FinanceRecordNotFoundError("The requested transaction was not found.")
     return _record_view(document)
-
 
 def list_transactions(
     user: AuthenticatedUser,
@@ -244,7 +226,6 @@ def list_transactions(
     )
     return filtered[offset : offset + limit], capped or offset + limit < len(filtered)
 
-
 def update_transaction(user: AuthenticatedUser, transaction_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "transactions", transaction_id)
     data = dict(document["data"])
@@ -276,7 +257,6 @@ def update_transaction(user: AuthenticatedUser, transaction_id: str, changes: di
     data.update(normalized)
     return _record_view(_update_record(user.id, "transactions", transaction_id, data))
 
-
 def delete_transaction(user: AuthenticatedUser, transaction_id: str) -> dict:
     document = _read_record(user.id, "transactions", transaction_id)
     data = dict(document["data"])
@@ -285,7 +265,6 @@ def delete_transaction(user: AuthenticatedUser, transaction_id: str) -> dict:
     data["is_deleted"] = True
     data["deleted_at"] = _now()
     return _record_view(_update_record(user.id, "transactions", transaction_id, data))
-
 
 def create_budget(user: AuthenticatedUser, payload) -> dict:
     data = {
@@ -300,11 +279,9 @@ def create_budget(user: AuthenticatedUser, payload) -> dict:
     }
     return _record_view(_create_record(user.id, "budgets", data))
 
-
 def list_budgets(user: AuthenticatedUser) -> list[dict]:
     items, _ = _list_records(user.id, "budgets", limit=500)
     return [item for item in items if item.get("is_active", True)]
-
 
 def update_budget(user: AuthenticatedUser, budget_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "budgets", budget_id)
@@ -316,7 +293,6 @@ def update_budget(user: AuthenticatedUser, budget_id: str, changes: dict) -> dic
             _decimal_text(value) if isinstance(value, Decimal) else value
         )
     return _record_view(_update_record(user.id, "budgets", budget_id, data))
-
 
 def create_goal(user: AuthenticatedUser, payload) -> dict:
     data = {
@@ -330,11 +306,9 @@ def create_goal(user: AuthenticatedUser, payload) -> dict:
     }
     return _record_view(_create_record(user.id, "goals", data))
 
-
 def list_goals(user: AuthenticatedUser) -> list[dict]:
     items, _ = _list_records(user.id, "goals", limit=500)
     return [item for item in items if item.get("is_active", True)]
-
 
 def update_goal(user: AuthenticatedUser, goal_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "goals", goal_id)
@@ -346,7 +320,6 @@ def update_goal(user: AuthenticatedUser, goal_id: str, changes: dict) -> dict:
             _decimal_text(value) if isinstance(value, Decimal) else value
         )
     return _record_view(_update_record(user.id, "goals", goal_id, data))
-
 
 def financial_summary(
     user: AuthenticatedUser,
@@ -419,7 +392,6 @@ def financial_summary(
         data_limit_reached=capped,
     )
 
-
 def _fnb_transaction_record_id(account_id: str, transaction) -> str:
     fingerprint = {
         "account_id": account_id,
@@ -431,8 +403,7 @@ def _fnb_transaction_record_id(account_id: str, transaction) -> str:
         "balance_after": _decimal_text(transaction.balance),
     }
     canonical = json.dumps(fingerprint, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:32]
-
+    return hashlib.sha256(canonical.encode()).hexdigest()[:32]
 
 def commit_fnb_import(
     user: AuthenticatedUser,
@@ -602,13 +573,11 @@ def commit_fnb_import(
         message="The FNB statement was imported. Original transaction values were preserved.",
     )
 
-
 def _is_conflict_error(error: Exception) -> bool:
     return (
         getattr(error, "code", None) == 409
         or getattr(error, "status_code", None) == 409
     )
-
 
 _SYSTEM_CATEGORIES = [
     {"name": "Salary", "kind": "income"},
@@ -631,7 +600,6 @@ _SYSTEM_CATEGORIES = [
     {"name": "Other", "kind": "expense"},
 ]
 
-
 def list_categories(user: AuthenticatedUser) -> list[dict]:
     """Return built-in categories and the current user's custom categories."""
     custom, _ = _list_records(user.id, "categories", limit=500)
@@ -648,7 +616,6 @@ def list_categories(user: AuthenticatedUser) -> list[dict]:
         for index, category in enumerate(_SYSTEM_CATEGORIES)
     ]
     return system + custom
-
 
 def create_category(user: AuthenticatedUser, name: str, kind: str) -> dict:
     """Create a user-owned category without changing the built-in catalogue."""
@@ -672,7 +639,6 @@ def create_category(user: AuthenticatedUser, name: str, kind: str) -> dict:
         )
     )
 
-
 def update_category(user: AuthenticatedUser, category_id: str, changes: dict) -> dict:
     """Update or deactivate a user-owned category."""
     document = _read_record(user.id, "categories", category_id)
@@ -684,12 +650,10 @@ def update_category(user: AuthenticatedUser, category_id: str, changes: dict) ->
             data[key] = value
     return _record_view(_update_record(user.id, "categories", category_id, data))
 
-
 def list_import_records(user: AuthenticatedUser) -> list[dict]:
     """List import metadata only, never the uploaded bank statement itself."""
     items, _ = _list_records(user.id, "imports", limit=500)
     return items
-
 
 def get_import_record(user: AuthenticatedUser, import_id: str) -> dict:
     return _record_view(_read_record(user.id, "imports", import_id))
