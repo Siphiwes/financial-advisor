@@ -693,6 +693,54 @@
     }
   });
 
+  $("export-data-button").addEventListener("click", async () => {
+    message("export-message", "Preparing your data export...");
+    try {
+      const data = await api("/api/v1/privacy/export");
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "financial-advisor-data-export.json";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      message("export-message", "Your data export has been downloaded.", "success");
+    } catch (error) {
+      message("export-message", error.message, "error");
+    }
+  });
+
+  $("delete-confirmation").addEventListener("input", () => {
+    $("delete-account-button").disabled =
+      $("delete-confirmation").value.trim() !== "DELETE";
+  });
+
+  $("delete-account-button").addEventListener("click", async () => {
+    if ($("delete-confirmation").value.trim() !== "DELETE") return;
+    const accepted = window.confirm(
+      "This permanently deletes your login and financial records. It cannot be undone. Continue?"
+    );
+    if (!accepted) return;
+    message("delete-message", "Deleting account and financial records...");
+    $("delete-account-button").disabled = true;
+    try {
+      const result = await api("/api/v1/privacy/data", { method: "DELETE" });
+      state.token = null;
+      state.user = null;
+      $("workspace").classList.add("hidden");
+      $("logout-button").classList.add("hidden");
+      $("login-panel").classList.remove("hidden");
+      message("login-message", result.message, "success");
+    } catch (error) {
+      message("delete-message", error.message, "error");
+      $("delete-account-button").disabled = false;
+    }
+  });
+
   fetch("/health", { credentials: "same-origin" })
     .then((response) => {
       $("connection-status").textContent = response.ok ? "API online" : "API issue";
