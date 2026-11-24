@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>Personal Finance Advisor</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Personal Finance Advisor</a>
+    <div id="account-strip" class="account-strip" hidden>
+      <span id="signed-in-user"></span>
+      <button id="logout-button" class="button button-quiet" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+    <section id="auth-panel" class="auth-layout">
+      <div class="intro">
+        <p class="eyebrow">Personal finance workspace</p>
+        <h1>Your financial information, in one place.</h1>
+        <p>Review your actual transactions, understand your cash flow, set goals and ask questions about your financial summaries.</p>
+        <p class="fine-print">This application does not ask for your FNB banking password, PIN or one-time PIN.</p>
+      </div>
+      <div class="auth-card">
+        <div class="tabs">
+          <button type="button" class="tab active" data-auth-tab="login">Sign in</button>
+          <button type="button" class="tab" data-auth-tab="register">Create account</button>
+        </div>
+        <form id="login-form" class="form-stack">
+          <label>Email address<input name="email" type="email" autocomplete="username" required></label>
+          <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+          <button class="button button-primary" type="submit">Sign in</button>
+        </form>
+        <form id="register-form" class="form-stack" hidden>
+          <label>Email address<input name="email" type="email" autocomplete="email" required></label>
+          <label>Password<input name="password" type="password" minlength="12" autocomplete="new-password" required></label>
+          <label>Invitation code<input name="invite" type="password" autocomplete="off" required></label>
+          <button class="button button-primary" type="submit">Create account</button>
+          <p class="fine-print">Registration is available only when an administrator has enabled invitations.</p>
+        </form>
+      </div>
+    </section>
+
+    <section id="app-panel" hidden>
+      <div class="welcome-row">
+        <div>
+          <p class="eyebrow">Financial overview</p>
+          <h1>Dashboard</h1>
+          <p class="muted">Your figures are calculated from the records stored in your account.</p>
+        </div>
+        <div class="date-filter">
+          <label>From<input id="summary-from" type="date"></label>
+          <label>To<input id="summary-to" type="date"></label>
+          <button id="refresh-summary" class="button button-secondary" type="button">Refresh</button>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-link active" data-section="dashboard" type="button">Dashboard</button>
+        <button class="nav-link" data-section="accounts" type="button">Accounts</button>
+        <button class="nav-link" data-section="transactions" type="button">Transactions</button>
+        <button class="nav-link" data-section="imports" type="button">FNB import</button>
+        <button class="nav-link" data-section="planning" type="button">Budgets & goals</button>
+        <button class="nav-link" data-section="categories" type="button">Categories</button>
+        <button class="nav-link" data-section="advisor" type="button">AI advisor</button>
+      </nav>
+
+      <section class="workspace-section" data-panel="dashboard">
+        <div id="summary-cards" class="metric-grid"></div>
+        <div class="content-grid">
+          <article class="card">
+            <div class="card-heading"><h2>Category totals</h2><span class="muted">Selected period</span></div>
+            <div id="category-totals" class="empty-state">No category totals to display.</div>
+          </article>
+          <article class="card">
+            <div class="card-heading"><h2>Unclassified transactions</h2></div>
+            <div id="unclassified-count" class="large-number">-</div>
+            <p class="muted">Transactions that haven't been assigned a category.</p>
+          </article>
+        </div>
+        <article class="card">
+          <div class="card-heading"><h2>Recent transactions</h2><button class="text-button" data-go="transactions" type="button">View all</button></div>
+          <div id="recent-transactions" class="table-wrap"></div>
+        </article>
+      </section>
+
+      <section class="workspace-section" data-panel="accounts" hidden>
+        <div class="section-heading"><div><h2>Financial accounts</h2><p class="muted">Store account references, not banking credentials.</p></div></div>
+        <article class="card">
+          <h3>Add an FNB account</h3>
+          <form id="account-form" class="form-grid">
+            <label>Display name<input name="display_name" maxlength="80" placeholder="Account label" required></label>
+            <label>Account type<select name="account_type"><option value="cheque">Cheque</option><option value="savings">Savings</option><option value="credit">Credit</option><option value="investment">Investment</option><option value="other">Other</option></select></label>
+            <label>Last four digits (optional)<input name="account_last_four" inputmode="numeric" pattern="[0-9]{4}" maxlength="4"></label>
+            <label>Currency<select name="currency"><option value="ZAR">ZAR</option></select></label>
+            <button class="button button-primary" type="submit">Add account</button>
+          </form>
+        </article>
+        <div id="accounts-list" class="card-list"></div>
+      </section>
+
+      <section class="workspace-section" data-panel="transactions" hidden>
+        <div class="section-heading"><div><h2>Transactions</h2><p class="muted">Original bank transaction details are retained. Category and notes can be updated.</p></div></div>
+        <article class="card">
+          <form id="transaction-filter" class="form-grid compact">
+            <label>From<input name="from_date" type="date"></label>
+            <label>To<input name="to_date" type="date"></label>
+            <label>Account<select id="transaction-account-filter" name="account_id"><option value="">All accounts</option></select></label>
+            <button class="button button-secondary" type="submit">Apply filters</button>
+          </form>
+        </article>
+        <article class="card"><div id="transactions-list" class="table-wrap"></div></article>
+      </section>
+
+      <section class="workspace-section" data-panel="imports" hidden>
+        <div class="section-heading"><div><h2>Import FNB statement</h2><p class="muted">Upload a CSV exported from FNB Online Banking. Maximum file size: 20 MB.</p></div></div>
+        <article class="card">
+          <div class="warning-strip">Use FNB's transaction-history CSV export. Do not upload screenshots or share your banking login details.</div>
+          <form id="fnb-import-form" class="form-grid">
+            <label>FNB account<select id="import-account" name="account_id" required><option value="">Select account</option></select></label>
+            <label class="file-field">FNB CSV file<input id="fnb-file" name="file" type="file" accept=".csv,text/csv" required></label>
+            <button id="preview-import" class="button button-secondary" type="button">Preview statement</button>
+            <button id="confirm-import" class="button button-primary" type="button" disabled>Confirm and import</button>
+          </form>
+          <div id="import-preview" class="preview-area"></div>
+        </article>
+        <article class="card"><div class="card-heading"><h2>Import history</h2></div><div id="import-history" class="table-wrap"></div></article>
+      </section>
+
+      <section class="workspace-section" data-panel="planning" hidden>
+        <div class="content-grid">
+          <article class="card">
+            <h2>Create a budget</h2>
+            <form id="budget-form" class="form-stack">
+              <label>Budget name<input name="name" maxlength="80" required></label>
+              <label>Period<input name="period" type="month" required></label>
+              <label>Amount (ZAR)<input name="amount" type="number" min="0.01" step="0.01" required></label>
+              <label>Category<select id="budget-category" name="category_id"><option value="">All spending</option></select></label>
+              <button class="button button-primary" type="submit">Save budget</button>
+            </form>
+          </article>
+          <article class="card">
+            <h2>Create a financial goal</h2>
+            <form id="goal-form" class="form-stack">
+              <label>Goal name<input name="name" maxlength="100" required></label>
+              <label>Target amount<input name="target_amount" type="number" min="0.01" step="0.01" required></label>
+              <label>Currency<select name="currency"><option value="ZAR">ZAR</option></select></label>
+              <label>Target date<input name="target_date" type="date"></label>
+              <button class="button button-primary" type="submit">Save goal</button>
+            </form>
+          </article>
+        </div>
+        <article class="card"><div class="card-heading"><h2>Budget progress</h2><label class="inline-label">Period<input id="budget-progress-period" type="month"></label></div><div id="budget-progress" class="card-list"></div></article>
+        <article class="card"><div class="card-heading"><h2>Financial goals</h2></div><div id="goals-list" class="card-list"></div></article>
+      </section>
+
+      <section class="workspace-section" data-panel="categories" hidden>
+        <div class="section-heading"><div><h2>Categories</h2><p class="muted">Create categories that reflect your own spending and income.</p></div></div>
+        <article class="card">
+          <form id="category-form" class="form-grid">
+            <label>Category name<input name="name" maxlength="80" required></label>
+            <label>Type<select name="kind"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label>
+            <label>Description<input name="description" maxlength="300"></label>
+            <button class="button button-primary" type="submit">Create category</button>
+          </form>
+        </article>
+        <div id="categories-list" class="card-list"></div>
+      </section>
+
+      <section class="workspace-section" data-panel="advisor" hidden>
+        <div class="section-heading"><div><h2>AI financial advisor</h2><p class="muted">AI explanations are based on verified application summaries.</p></div></div>
+        <article class="card privacy-card">
+          <h3>External AI data processing</h3>
+          <p id="ai-consent-notice" class="muted">When enabled, your question and calculated income, expense, cash-flow and category totals are sent to IBM watsonx.ai. Bank statement files, account numbers, transaction descriptions and references are not sent.</p>
+          <label class="checkbox-label"><input id="ai-consent" type="checkbox"> I consent to sending my question and calculated financial summaries to IBM watsonx.ai.</label>
+          <button id="save-ai-consent" class="button button-secondary" type="button">Save consent</button>
+          <p class="fine-print">You can withdraw consent at any time. The AI advisor also remains disabled until the application operator enables and approves the integration.</p>
+        </article>
+        <article class="card">
+          <h3>Ask about your finances</h3>
+          <form id="advisor-form" class="form-stack">
+            <label>Question<textarea name="question" rows="3" maxlength="1200" required placeholder="Ask a question about the selected period and your financial summaries."></textarea></label>
+            <div class="form-grid compact">
+              <label>From<input name="from_date" type="date" required></label>
+              <label>To<input name="to_date" type="date" required></label>
+              <label>Currency<select name="currency"><option value="ZAR">ZAR</option></select></label>
+            </div>
+            <button class="button button-primary" type="submit">Ask advisor</button>
+          </form>
+          <div id="advisor-answer" class="answer-area" aria-live="polite"></div>
+        </article>
+      </section>
+    </section>
+
+    <footer class="footer">
+      <p>Financial figures come from your saved records. AI-generated explanations are educational and are not regulated financial advice.</p>
+      <p>Keep your FNB password, PIN and one-time PIN private. They are not required by this application.</p>
+    </footer>
+  </main>
+</body>
+</html>
