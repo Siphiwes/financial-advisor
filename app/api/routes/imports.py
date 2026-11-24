@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, require_financial_data_enabled
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.finance import FNBImportCommitResponse, ImportRecordResponse
 from app.schemas.imports import FNBImportPreview, FNBTransactionPreview
@@ -89,6 +89,7 @@ async def preview_fnb_csv(
     "/fnb/csv/confirm",
     response_model=FNBImportCommitResponse,
     summary="Confirm and import an FNB CSV into the selected account",
+    dependencies=[Depends(require_financial_data_enabled)],
 )
 async def confirm_fnb_csv_import(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
@@ -141,14 +142,22 @@ async def confirm_fnb_csv_import(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.get("", response_model=list[ImportRecordResponse])
+@router.get(
+    "",
+    response_model=list[ImportRecordResponse],
+    dependencies=[Depends(require_financial_data_enabled)],
+)
 def read_import_history(
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> list[dict]:
     return list_import_records(current_user)
 
 
-@router.get("/{import_id}", response_model=ImportRecordResponse)
+@router.get(
+    "/{import_id}",
+    response_model=ImportRecordResponse,
+    dependencies=[Depends(require_financial_data_enabled)],
+)
 def read_import(
     import_id: str,
     current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
