@@ -832,7 +832,7 @@ def recurring_payment_candidates(user: AuthenticatedUser) -> list[dict]:
         grouped[key].append(transaction)
 
     candidates = []
-    for (account_id, normalized_description, currency), entries in grouped.items():
+    for (account_id, _normalized_description, currency), entries in grouped.items():
         if len(entries) < 2:
             continue
         entries.sort(key=lambda item: item["transaction_date"])
