@@ -35,6 +35,24 @@ def create_app() -> FastAPI:
     application.include_router(privacy_router)
     application.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
+    @application.middleware("http")
+    async def add_security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=()"
+        )
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self'; "
+            "style-src-attr 'unsafe-inline'; img-src 'self' data:; "
+            "connect-src 'self'; font-src 'self'; object-src 'none'; "
+            "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        )
+        return response
+
     @application.get("/app", tags=["web"])
     def web_application() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
