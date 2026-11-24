@@ -2,12 +2,20 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.dependencies import get_current_user
 from app.schemas.auth import AuthenticatedUser
+from app.schemas.finance import FNBImportCommitResponse, ImportRecordResponse
 from app.schemas.imports import FNBImportPreview, FNBTransactionPreview
 from app.services.fnb_csv import MAX_CSV_BYTES, FNBCSVValidationError, parse_fnb_csv
+from app.services.finance import (
+    FinanceRecordNotFoundError,
+    FinanceValidationError,
+    commit_fnb_import,
+    get_import_record,
+    list_import_records,
+)
 
 router = APIRouter(prefix="/imports", tags=["statement imports"])
 PREVIEW_TRANSACTION_LIMIT = 10
@@ -74,3 +82,78 @@ async def preview_fnb_csv(
             "saved to Cloudant."
         ),
     )
+
+
+
+@router.post(
+    "/fnb/csv/confirm",
+    response_model=FNBImportCommitResponse,
+    summary="Confirm and import an FNB CSV into the selected account",
+)
+async def confirm_fnb_csv_import(
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    account_id: Annotated[
+        str,
+        Form(description="ID of the authenticated user's FNB account"),
+    ],
+    consent: Annotated[
+        bool,
+        Form(description="Must be true to confirm persistent transaction storage"),
+    ],
+    file: Annotated[
+        UploadFile,
+        File(description="FNB transaction-history export in CSV format"),
+    ],
+) -> FNBImportCommitResponse:
+    """Persist a confirmed FNB export after validation and account matching."""
+    try:
+        if consent is not True:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Explicit confirmation is required before importing transactions.",
+            )
+        if not file.filename or not file.filename.casefold().endswith(".csv"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Upload an FNB CSV file with a .csv extension.",
+            )
+
+        content = await file.read(MAX_CSV_BYTES + 1)
+        if len(content) > MAX_CSV_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="The uploaded CSV file exceeds the 20 MB limit.",
+            )
+        statement = parse_fnb_csv(content)
+    except FNBCSVValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    finally:
+        await file.close()
+
+    try:
+        return commit_fnb_import(current_user, account_id, statement, content)
+    except FinanceRecordNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="The selected account was not found.") from exc
+    except FinanceValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("", response_model=list[ImportRecordResponse])
+def read_import_history(
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> list[dict]:
+    return list_import_records(current_user)
+
+
+@router.get("/{import_id}", response_model=ImportRecordResponse)
+def read_import(
+    import_id: str,
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> dict:
+    try:
+        return get_import_record(current_user, import_id)
+    except FinanceRecordNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="The requested import was not found.") from exc
