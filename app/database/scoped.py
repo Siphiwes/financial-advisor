@@ -209,3 +209,96 @@ def delete_user_scoped_document(
         rev=document["_rev"],
     ).get_result()
     return result.get("ok") is True
+
+
+def get_user_scoped_documents_by_ids(
+    client,
+    database: str,
+    user_id: str,
+    collection: str,
+    record_ids: list[str],
+) -> dict[str, dict]:
+    """Fetch existing owner-scoped documents by deterministic IDs in batches."""
+    _validate_scope(user_id, collection)
+    found: dict[str, dict] = {}
+    batch_size = 500
+
+    for start in range(0, len(record_ids), batch_size):
+        batch_ids = record_ids[start : start + batch_size]
+        document_ids = [
+            _document_id(user_id, collection, record_id)
+            for record_id in batch_ids
+        ]
+        result = client.post_all_docs(
+            db=database,
+            keys=document_ids,
+            include_docs=True,
+        ).get_result()
+        for row in result.get("rows", []):
+            document = row.get("doc")
+            if not isinstance(document, dict):
+                continue
+            record_id = document.get("record_id")
+            if (
+                record_id in batch_ids
+                and document.get("user_id") == user_id
+                and document.get("type") == collection
+                and document.get("_id") == _document_id(user_id, collection, record_id)
+            ):
+                found[record_id] = document
+    return found
+
+
+def bulk_create_user_scoped_documents(
+    client,
+    database: str,
+    user_id: str,
+    collection: str,
+    records: list[tuple[str, dict]],
+) -> dict[str, int]:
+    """Create deterministic owner-scoped records in bounded Cloudant bulk requests.
+
+    Cloudant bulk writes are not transactional. A response is inspected per
+    document, and any non-conflict failure raises so the caller can mark the
+    enclosing import as partial and safely retry.
+    """
+    _validate_scope(user_id, collection)
+    created_count = 0
+    conflict_count = 0
+    batch_size = 200
+
+    for start in range(0, len(records), batch_size):
+        batch = records[start : start + batch_size]
+        now = datetime.now(UTC).isoformat()
+        documents = []
+        for record_id, data in batch:
+            if not isinstance(data, dict):
+                raise ValueError("Document data must be an object.")
+            documents.append(
+                {
+                    "_id": _document_id(user_id, collection, record_id),
+                    "type": collection,
+                    "user_id": user_id,
+                    "record_id": record_id,
+                    "data": data,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+
+        results = client.post_bulk_docs(
+            db=database,
+            bulk_docs={"docs": documents},
+        ).get_result()
+        if not isinstance(results, list) or len(results) != len(documents):
+            raise RuntimeError("Cloudant returned an incomplete bulk-write result.")
+
+        for result in results:
+            if result.get("ok") is True or result.get("rev"):
+                created_count += 1
+            elif result.get("error") == "conflict":
+                conflict_count += 1
+            else:
+                raise RuntimeError("Cloudant could not save every imported record.")
+
+    return {"created": created_count, "conflicts": conflict_count}
