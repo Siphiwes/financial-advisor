@@ -36,7 +36,13 @@ def read_my_audit_events(
 def export_my_data(current_user: CurrentUser) -> dict:
     """Export the user's application records, even while finance writes are gated."""
     try:
+        finance.record_sensitive_access(current_user, "export", "privacy")
         return finance.export_user_data(current_user)
+    except finance.FinanceAuditError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="The export was blocked because its audit event could not be recorded.",
+        ) from exc
     except finance.FinanceValidationError as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
     except Exception as exc:
