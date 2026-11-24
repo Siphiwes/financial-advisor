@@ -71,7 +71,7 @@ def test_user_can_create_and_read_own_document(client: FakeCloudantClient) -> No
     user_id = str(uuid4())
 
     record_id = create_user_scoped_document(
-        client, "finance-advisor-db", user_id, "transactions", {"amount": 125.50}
+        client, "finance-advisor-db", user_id, "transactions", {"ownership_check": "owner-record"}
     )
     document = get_user_scoped_document(
         client, "finance-advisor-db", user_id, "transactions", record_id
@@ -79,14 +79,14 @@ def test_user_can_create_and_read_own_document(client: FakeCloudantClient) -> No
 
     assert document is not None
     assert document["user_id"] == user_id
-    assert document["data"] == {"amount": 125.50}
+    assert document["data"] == {"ownership_check": "owner-record"}
 
 
 def test_another_user_cannot_read_document(client: FakeCloudantClient) -> None:
     owner_id = str(uuid4())
     other_user_id = str(uuid4())
     record_id = create_user_scoped_document(
-        client, "finance-advisor-db", owner_id, "transactions", {"amount": 125.50}
+        client, "finance-advisor-db", owner_id, "transactions", {"ownership_check": "owner-record"}
     )
 
     document = get_user_scoped_document(
@@ -100,7 +100,7 @@ def test_another_user_cannot_update_document(client: FakeCloudantClient) -> None
     owner_id = str(uuid4())
     other_user_id = str(uuid4())
     record_id = create_user_scoped_document(
-        client, "finance-advisor-db", owner_id, "transactions", {"amount": 125.50}
+        client, "finance-advisor-db", owner_id, "transactions", {"ownership_check": "owner-record"}
     )
 
     with pytest.raises(UserScopedDocumentNotFoundError):
@@ -110,21 +110,21 @@ def test_another_user_cannot_update_document(client: FakeCloudantClient) -> None
             other_user_id,
             "transactions",
             record_id,
-            {"amount": 1.00},
+            {"ownership_check": "other-user-attempt"},
         )
 
     owner_document = get_user_scoped_document(
         client, "finance-advisor-db", owner_id, "transactions", record_id
     )
     assert owner_document is not None
-    assert owner_document["data"] == {"amount": 125.50}
+    assert owner_document["data"] == {"ownership_check": "owner-record"}
 
 
 def test_another_user_cannot_delete_document(client: FakeCloudantClient) -> None:
     owner_id = str(uuid4())
     other_user_id = str(uuid4())
     record_id = create_user_scoped_document(
-        client, "finance-advisor-db", owner_id, "transactions", {"amount": 125.50}
+        client, "finance-advisor-db", owner_id, "transactions", {"ownership_check": "owner-record"}
     )
 
     with pytest.raises(UserScopedDocumentNotFoundError):
@@ -143,7 +143,7 @@ def test_another_user_cannot_delete_document(client: FakeCloudantClient) -> None
 def test_owner_can_update_and_delete_document(client: FakeCloudantClient) -> None:
     user_id = str(uuid4())
     record_id = create_user_scoped_document(
-        client, "finance-advisor-db", user_id, "transactions", {"amount": 125.50}
+        client, "finance-advisor-db", user_id, "transactions", {"ownership_check": "owner-record"}
     )
 
     update_user_scoped_document(
@@ -152,14 +152,14 @@ def test_owner_can_update_and_delete_document(client: FakeCloudantClient) -> Non
         user_id,
         "transactions",
         record_id,
-        {"amount": 99.00},
+        {"ownership_check": "owner-updated-record"},
     )
     updated = get_user_scoped_document(
         client, "finance-advisor-db", user_id, "transactions", record_id
     )
 
     assert updated is not None
-    assert updated["data"] == {"amount": 99.00}
+    assert updated["data"] == {"ownership_check": "owner-updated-record"}
     assert delete_user_scoped_document(
         client, "finance-advisor-db", user_id, "transactions", record_id
     )
