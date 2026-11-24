@@ -124,3 +124,23 @@ Repeat the same file/account import only as an idempotency check. It should retu
 ## Release rule
 
 The application can be deployed with financial and AI features disabled for a safe technical smoke test. A deployment with persistent financial data enabled is approved only after the operational and privacy controls above have been completed and verified. This checklist does not replace a legal review or a real-statement validation.
+
+
+## 9. Recovery and audit implementation status
+
+Repository support is now present:
+- scripts/cloudant-backup.sh streams a full CouchBackup export through gzip and age encryption before uploading the encrypted object and checksum to COS.
+- scripts/cloudant-restore.sh verifies the downloaded checksum, decrypts the archive and restores only to a separately named database.
+- CI syntax-checks both shell scripts.
+- Sensitive finance reads, statement preview/history, export and AI data-sharing requests write minimal audit events. Required audit writes fail closed.
+
+Still requires IBM Cloud/operator action:
+- Provision COS bucket and least-privilege HMAC credentials.
+- Generate and securely escrow the age private identity.
+- Configure protected scheduled execution and alerting.
+- Run a real backup and restore into a new empty Cloudant database.
+- Recreate Cloudant security settings and validate the restored application in an isolated environment.
+- Complete and approve docs/retention-policy-template.md, including COS lifecycle expiry.
+- Decide RPO and RTO and document evidence.
+
+The audit collection is user-scoped and is deleted with the account. It is not an immutable compliance archive. Audit coverage is improved but does not yet include every authentication, administrative, export/deletion or operational event. Do not describe this as complete compliance audit logging.
