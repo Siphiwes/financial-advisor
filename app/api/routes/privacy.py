@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, get_user_for_deletion
 from app.schemas.auth import AuthenticatedUser
 from app.schemas.privacy import (
     PrivacyDeleteRequest,
@@ -17,6 +17,7 @@ from app.services import finance
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/privacy", tags=["privacy"])
 CurrentUser = Annotated[AuthenticatedUser, Depends(get_current_user)]
+DeletionUser = Annotated[AuthenticatedUser, Depends(get_user_for_deletion)]
 
 
 @router.get("/audit")
@@ -49,7 +50,7 @@ def export_my_data(current_user: CurrentUser) -> dict:
 @router.delete("/data", response_model=PrivacyDeleteResponse)
 def delete_my_data(
     payload: PrivacyDeleteRequest,
-    current_user: CurrentUser,
+    current_user: DeletionUser,
 ) -> dict:
     """Delete user-owned finance documents after password re-verification."""
     try:
