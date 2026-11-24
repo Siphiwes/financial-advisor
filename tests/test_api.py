@@ -38,3 +38,14 @@ def test_web_assets_are_served() -> None:
     assert "Authorization" in javascript.text
     assert stylesheet.status_code == 200
     assert ".topbar" in stylesheet.text
+
+
+
+def test_security_headers_are_applied() -> None:
+    response = client.get("/app")
+
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
