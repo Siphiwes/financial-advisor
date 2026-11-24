@@ -268,7 +268,7 @@
       suggest.type = "button";
       suggest.addEventListener("click", async () => {
         const consent = window.confirm(
-          "Send this transaction's date, description, amount and currency, plus your allowed category names, to IBM watsonx.ai for a category suggestion?"
+          "Send this transaction's full stored details, including its description, reference and account identifier, plus the associated account record and category names, to IBM watsonx.ai for a category suggestion?"
         );
         if (!consent) return;
         try {
