@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10243a">
+  <title>Financial Advisor</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/app" aria-label="Financial Advisor home">
+      <span class="brand-mark">FA</span>
+      <span><strong>Financial Advisor</strong><small>Personal finance workspace</small></span>
+    </a>
+    <div class="top-actions">
+      <span id="connection-status" class="status-pill">Checking API</span>
+      <button id="logout-button" class="button button-quiet hidden" type="button">Sign out</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section id="login-panel" class="login-wrap">
+      <div class="login-copy">
+        <p class="eyebrow">YOUR FINANCIAL WORKSPACE</p>
+        <h1>Understand your money with verified financial data.</h1>
+        <p>Sign in to work with your accounts, transactions, budgets and financial goals.</p>
+        <p class="privacy-note">Your access token is held in memory in this browser tab. It is not saved in browser storage.</p>
+      </div>
+      <form id="login-form" class="panel login-panel">
+        <h2>Sign in</h2>
+        <label for="email">Email address</label>
+        <input id="email" name="email" type="email" autocomplete="username" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button class="button button-primary full-width" type="submit">Sign in</button>
+        <p id="login-message" class="form-message" role="status"></p>
+      </form>
+    </section>
+
+    <section id="workspace" class="workspace hidden">
+      <div class="welcome-row">
+        <div>
+          <p class="eyebrow">PERSONAL FINANCE</p>
+          <h1 id="welcome-title">Your dashboard</h1>
+          <p id="user-email" class="muted"></p>
+        </div>
+        <div class="workspace-meta">
+          <span id="finance-gate" class="status-pill status-warning">Financial data locked</span>
+          <span class="muted small">FNB South Africa</span>
+        </div>
+      </div>
+
+      <div id="global-message" class="notice hidden" role="status"></div>
+
+      <nav class="tabs" aria-label="Main navigation">
+        <button type="button" class="tab active" data-view="dashboard-view">Overview</button>
+        <button type="button" class="tab" data-view="accounts-view">Accounts</button>
+        <button type="button" class="tab" data-view="transactions-view">Transactions</button>
+        <button type="button" class="tab" data-view="imports-view">FNB import</button>
+        <button type="button" class="tab" data-view="budgets-view">Budgets</button>
+        <button type="button" class="tab" data-view="goals-view">Goals</button>
+        <button type="button" class="tab" data-view="categories-view">Categories</button>
+      </nav>
+
+      <section id="dashboard-view" class="view">
+        <div id="finance-lock-notice" class="notice notice-warning">
+          Your account is signed in, but financial data storage is disabled. You can preview an FNB statement. Accounts and saved financial information will become available after the release safeguards are completed.
+        </div>
+        <div id="summary-cards" class="metric-grid">
+          <article class="metric-card"><span>Income</span><strong>Not available</strong><small>Awaiting saved transactions</small></article>
+          <article class="metric-card"><span>Expenses</span><strong>Not available</strong><small>Awaiting saved transactions</small></article>
+          <article class="metric-card"><span>Net cash flow</span><strong>Not available</strong><small>Calculated per currency</small></article>
+        </div>
+        <div class="two-column">
+          <article class="panel">
+            <div class="panel-heading"><div><h2>Spending by category</h2><p class="muted">Based on saved transactions</p></div></div>
+            <div id="category-summary" class="empty-state">No financial summary is available yet.</div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><h2>Recurring payment candidates</h2><p class="muted">Detected from your transaction history</p></div></div>
+            <div id="recurring-list" class="empty-state">Not available until transactions are saved.</div>
+          </article>
+        </div>
+        <article class="panel ai-panel">
+          <div><p class="eyebrow">AI FINANCIAL ADVISOR</p><h2>AI analysis is not connected yet</h2><p class="muted">The application will only provide AI explanations once the IBM watsonx.ai integration and verified-data controls are implemented.</p></div>
+          <span class="status-pill">Planned</span>
+        </article>
+      </section>
+
+      <section id="accounts-view" class="view hidden">
+        <div class="section-heading"><div><h2>Financial accounts</h2><p class="muted">Link account metadata only. Never enter online banking credentials.</p></div><button id="refresh-accounts" class="button button-secondary" type="button">Refresh</button></div>
+        <div id="accounts-lock" class="notice notice-warning hidden">Account storage is currently disabled.</div>
+        <form id="account-form" class="panel form-grid">
+          <h3 class="span-all">Add an FNB account</h3>
+          <div><label for="account-name">Display name</label><input id="account-name" required maxlength="80" placeholder="Name shown in your workspace"></div>
+          <div><label for="account-type">Account type</label><select id="account-type"><option value="cheque">Cheque</option><option value="savings">Savings</option><option value="credit_card">Credit card</option><option value="investment">Investment</option><option value="loan">Loan</option><option value="other">Other</option></select></div>
+          <div><label for="account-currency">Currency</label><input id="account-currency" value="ZAR" maxlength="3" pattern="[A-Z]{3}" required></div>
+          <div><label for="account-last-four">Last four digits</label><input id="account-last-four" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required></div>
+          <div class="span-all"><button class="button button-primary" type="submit">Add account</button></div>
+          <p id="account-message" class="form-message span-all" role="status"></p>
+        </form>
+        <div id="account-list" class="record-list"></div>
+      </section>
+
+      <section id="transactions-view" class="view hidden">
+        <div class="section-heading"><div><h2>Transactions</h2><p class="muted">Search, review and correct recorded transactions.</p></div><button id="refresh-transactions" class="button button-secondary" type="button">Refresh</button></div>
+        <div id="transactions-lock" class="notice notice-warning hidden">Transaction storage is currently disabled.</div>
+        <form id="transaction-filter" class="filter-row">
+          <input id="transaction-search" placeholder="Search description or reference" maxlength="160">
+          <select id="transaction-account-filter"><option value="">All accounts</option></select>
+          <input id="transaction-from" type="date" aria-label="From date">
+          <input id="transaction-to" type="date" aria-label="To date">
+          <button class="button button-secondary" type="submit">Filter</button>
+        </form>
+        <form id="transaction-form" class="panel form-grid">
+          <h3 class="span-all">Add a transaction</h3>
+          <div><label for="transaction-account">Account</label><select id="transaction-account" required><option value="">Select account</option></select></div>
+          <div><label for="transaction-date">Date</label><input id="transaction-date" type="date" required></div>
+          <div class="span-two"><label for="transaction-description">Description</label><input id="transaction-description" required maxlength="500"></div>
+          <div><label for="transaction-amount">Amount (negative for debit)</label><input id="transaction-amount" type="number" step="0.01" required></div>
+          <div><label for="transaction-category">Category</label><select id="transaction-category"><option value="">Uncategorised</option></select></div>
+          <div class="span-all"><button class="button button-primary" type="submit">Save transaction</button></div>
+          <p id="transaction-message" class="form-message span-all" role="status"></p>
+        </form>
+        <div id="transaction-list" class="table-wrap"></div>
+      </section>
+
+      <section id="imports-view" class="view hidden">
+        <div class="section-heading"><div><h2>FNB statement import</h2><p class="muted">Upload a CSV export from FNB Online Banking.</p></div><span class="status-pill">20 MB maximum</span></div>
+        <div class="notice">The preview reads the selected file in memory and does not save transactions. The original statement file is not stored by this application.</div>
+        <form id="import-form" class="panel">
+          <label for="fnb-file">FNB transaction-history CSV</label>
+          <input id="fnb-file" type="file" accept=".csv,text/csv" required>
+          <div class="form-actions"><button class="button button-primary" type="submit">Preview statement</button><span id="import-message" class="form-message" role="status"></span></div>
+        </form>
+        <section id="import-preview" class="panel hidden">
+          <div class="panel-heading"><div><h3>Statement preview</h3><p id="import-metadata" class="muted"></p></div><span id="import-count" class="status-pill"></span></div>
+          <div id="import-transactions" class="table-wrap"></div>
+          <form id="import-confirm-form" class="confirm-import">
+            <label for="import-account">Import into account</label><select id="import-account" required><option value="">Select matching FNB account</option></select>
+            <label class="checkbox-row"><input id="import-consent" type="checkbox" required> I confirm that this is my statement and authorise its transactions to be saved to my account.</label>
+            <button id="confirm-import-button" class="button button-primary" type="submit" disabled>Confirm import</button>
+            <p id="confirm-import-message" class="form-message" role="status"></p>
+          </form>
+          <div id="import-gate-message" class="notice notice-warning hidden">Persistent imports are disabled until the release safeguards are complete. You can preview the statement, but cannot save it yet.</div>
+        </section>
+      </section>
+
+      <section id="budgets-view" class="view hidden">
+        <div class="section-heading"><div><h2>Budgets</h2><p class="muted">Track actual spending against your limits.</p></div><button id="refresh-budgets" class="button button-secondary" type="button">Refresh</button></div>
+        <div id="budgets-lock" class="notice notice-warning hidden">Budget storage is currently disabled.</div>
+        <form id="budget-form" class="panel form-grid">
+          <h3 class="span-all">Create a budget</h3>
+          <div><label for="budget-name">Name</label><input id="budget-name" required maxlength="100"></div>
+          <div><label for="budget-category">Category</label><select id="budget-category" required></select></div>
+          <div><label for="budget-amount">Limit</label><input id="budget-amount" type="number" min="0.01" step="0.01" required></div>
+          <div><label for="budget-period">Period</label><select id="budget-period"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div>
+          <div><label for="budget-start">Start date</label><input id="budget-start" type="date" required></div>
+          <div class="span-all"><button class="button button-primary" type="submit">Create budget</button><span id="budget-message" class="form-message"></span></div>
+        </form>
+        <div id="budget-list" class="record-list"></div>
+      </section>
+
+      <section id="goals-view" class="view hidden">
+        <div class="section-heading"><div><h2>Financial goals</h2><p class="muted">Track targets and user-recorded contributions.</p></div><button id="refresh-goals" class="button button-secondary" type="button">Refresh</button></div>
+        <div id="goals-lock" class="notice notice-warning hidden">Goal storage is currently disabled.</div>
+        <form id="goal-form" class="panel form-grid">
+          <h3 class="span-all">Create a goal</h3>
+          <div><label for="goal-name">Goal name</label><input id="goal-name" required maxlength="100"></div>
+          <div><label for="goal-target">Target amount</label><input id="goal-target" type="number" min="0.01" step="0.01" required></div>
+          <div><label for="goal-date">Target date (optional)</label><input id="goal-date" type="date"></div>
+          <div class="span-all"><button class="button button-primary" type="submit">Create goal</button><span id="goal-message" class="form-message"></span></div>
+        </form>
+        <div id="goal-list" class="record-list"></div>
+      </section>
+
+      <section id="categories-view" class="view hidden">
+        <div class="section-heading"><div><h2>Categories</h2><p class="muted">Use built-in or create your own spending categories.</p></div><button id="refresh-categories" class="button button-secondary" type="button">Refresh</button></div>
+        <div id="categories-lock" class="notice notice-warning hidden">Category management is currently disabled.</div>
+        <form id="category-form" class="panel form-grid">
+          <h3 class="span-all">Add a category</h3>
+          <div><label for="category-name">Name</label><input id="category-name" required maxlength="80"></div>
+          <div><label for="category-kind">Type</label><select id="category-kind"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></div>
+          <div class="span-all"><button class="button button-primary" type="submit">Add category</button><span id="category-message" class="form-message"></span></div>
+        </form>
+        <div id="category-list" class="record-list"></div>
+      </section>
+      <footer class="footer">Financial calculations are based on recorded bank data. AI explanations are not enabled until the IBM watsonx.ai integration is complete.</footer>
+    </section>
+  </main>
+</body>
+</html>
