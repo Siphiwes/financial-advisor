@@ -391,6 +391,33 @@
     });
   }
 
+  function renderImportHistory(items) {
+    const target = $("import-history-list");
+    target.replaceChildren();
+    if (!items || !items.length) {
+      target.append(el("p", "No confirmed statement imports have been recorded.", "empty-state"));
+      return;
+    }
+    items.forEach((item) => {
+      const card = el("article", undefined, "record-card");
+      const top = el("div", undefined, "record-card-top");
+      const details = el("div");
+      details.append(el("h3", "FNB CSV import"));
+      details.append(el("p", "Statement date: " + (item.statement_date || "Not supplied")));
+      top.append(details, el("span", item.status, "status-pill"));
+      card.append(top);
+      const counts = el("p",
+        "Processed: " + item.transaction_count +
+        " · Imported: " + item.imported_count +
+        " · Duplicates: " + item.duplicate_count,
+        "muted small"
+      );
+      card.append(counts);
+      card.append(el("p", "Completed: " + (item.completed_at || "Not completed"), "muted small"));
+      target.append(card);
+    });
+  }
+
   function renderSummary(summary, recurring) {
     const cards = $("summary-cards");
     cards.replaceChildren();
@@ -476,6 +503,7 @@
         api("/api/v1/goals"),
         api("/api/v1/analytics/summary"),
         api("/api/v1/analytics/recurring-payments"),
+        api("/imports"),
       ]);
       state.categories = results[0];
       renderAccounts();
@@ -484,6 +512,7 @@
       renderBudgets(results[2]);
       renderGoals(results[3]);
       renderSummary(results[4], results[5]);
+      renderImportHistory(results[6]);
       $("confirm-import-button").disabled = !state.importPreview;
     } catch (error) {
       if (error instanceof ApiError && error.status === 503) {
@@ -614,6 +643,7 @@
     }
   });
   $("refresh-accounts").addEventListener("click", loadFinanceData);
+  $("refresh-import-history").addEventListener("click", loadFinanceData);
 
   $("transaction-form").addEventListener("submit", async (event) => {
     event.preventDefault();
