@@ -6,8 +6,10 @@ stored as decimal strings to avoid binary floating-point conversion.
 
 import hashlib
 import json
+import re
+from calendar import monthrange
 from collections import defaultdict
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -305,6 +307,7 @@ def create_goal(user: AuthenticatedUser, payload) -> dict:
         "currency": payload.currency,
         "target_date": payload.target_date.isoformat() if payload.target_date else None,
         "saved_amount": "0.00",
+        "contributions": [],
         "is_active": True,
     }
     return _record_view(_create_record(user.id, "goals", data))
@@ -660,3 +663,190 @@ def list_import_records(user: AuthenticatedUser) -> list[dict]:
 
 def get_import_record(user: AuthenticatedUser, import_id: str) -> dict:
     return _record_view(_read_record(user.id, "imports", import_id))
+
+
+
+def get_goal(user: AuthenticatedUser, goal_id: str) -> dict:
+    """Read one goal owned by the authenticated user."""
+    document = _read_record(user.id, "goals", goal_id)
+    if not document["data"].get("is_active", True):
+        raise FinanceRecordNotFoundError("The requested goal was not found.")
+    return _record_view(document)
+
+
+def add_goal_contribution(user: AuthenticatedUser, goal_id: str, payload) -> dict:
+    """Record a user-entered contribution or withdrawal against a goal."""
+    document = _read_record(user.id, "goals", goal_id)
+    data = dict(document["data"])
+    if not data.get("is_active", True):
+        raise FinanceRecordNotFoundError("The requested goal was not found.")
+
+    current_saved = Decimal(str(data.get("saved_amount", "0")))
+    contribution = payload.amount
+    if payload.direction == "withdrawal":
+        if contribution > current_saved:
+            raise FinanceValidationError(
+                "A withdrawal cannot exceed the goal's recorded saved amount."
+            )
+        updated_saved = current_saved - contribution
+    else:
+        updated_saved = current_saved + contribution
+
+    history = list(data.get("contributions") or [])
+    if len(history) >= 1000:
+        raise FinanceValidationError(
+            "The contribution history reached its record limit."
+        )
+
+    history.append(
+        {
+            "amount": _decimal_text(contribution),
+            "transaction_date": payload.transaction_date.isoformat(),
+            "direction": payload.direction,
+            "notes": payload.notes,
+            "recorded_at": _now(),
+        }
+    )
+    data["saved_amount"] = _decimal_text(updated_saved)
+    data["contributions"] = history
+    return _record_view(_update_record(user.id, "goals", goal_id, data))
+
+
+def _add_months(value: date, months: int) -> date:
+    month_index = value.year * 12 + value.month - 1 + months
+    year, zero_based_month = divmod(month_index, 12)
+    month = zero_based_month + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def _budget_period_dates(budget: dict, today: date) -> tuple[date, date]:
+    start = date.fromisoformat(budget["start_date"])
+    period = budget["period"]
+    if period == "weekly":
+        elapsed_weeks = max(0, (today - start).days // 7)
+        period_start = start + timedelta(weeks=elapsed_weeks)
+        period_end = period_start + timedelta(days=6)
+    else:
+        months = {"monthly": 1, "quarterly": 3, "yearly": 12}[period]
+        elapsed_months = max(0, (today.year - start.year) * 12 + today.month - start.month)
+        period_offset = (elapsed_months // months) * months
+        period_start = _add_months(start, period_offset)
+        period_end = _add_months(period_start, months) - timedelta(days=1)
+
+    configured_end = (
+        date.fromisoformat(budget["end_date"]) if budget.get("end_date") else None
+    )
+    if configured_end and configured_end < period_end:
+        period_end = configured_end
+    if period_start < start:
+        period_start = start
+    return period_start, period_end
+
+
+def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) -> list[dict]:
+    """Calculate budget usage from the user's own saved transactions."""
+    today = today or date.today()
+    budgets = list_budgets(user)
+    transactions, _ = _list_all_records(user.id, "transactions")
+    progress = []
+
+    for budget in budgets:
+        period_start, period_end = _budget_period_dates(budget, today)
+        spent = Decimal("0")
+        if today >= period_start:
+            for transaction in transactions:
+                if transaction.get("is_deleted") or transaction.get("amount") is None:
+                    continue
+                transaction_date = date.fromisoformat(transaction["transaction_date"])
+                if not period_start <= transaction_date <= min(period_end, today):
+                    continue
+                if transaction.get("category") != budget["category"]:
+                    continue
+                if transaction.get("currency") != budget["currency"]:
+                    continue
+                amount = Decimal(str(transaction["amount"]))
+                if amount < 0:
+                    spent += abs(amount)
+
+        budget_amount = Decimal(str(budget["amount"]))
+        progress.append(
+            {
+                **budget,
+                "period_start": period_start,
+                "period_end": period_end,
+                "spent": spent,
+                "remaining": budget_amount - spent,
+                "percent_used": (
+                    (spent / budget_amount * Decimal("100"))
+                    if budget_amount > 0
+                    else Decimal("0")
+                ),
+            }
+        )
+
+    return progress
+
+
+def recurring_payment_candidates(user: AuthenticatedUser) -> list[dict]:
+    """Identify possible recurring debits from the user's actual transaction records."""
+    transactions, _ = _list_all_records(user.id, "transactions")
+    grouped: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
+
+    for transaction in transactions:
+        if transaction.get("is_deleted"):
+            continue
+        amount = Decimal(str(transaction["amount"]))
+        if amount >= 0:
+            continue
+        description = re.sub(
+            r"\d+",
+            "",
+            transaction.get("description", "").casefold(),
+        )
+        normalized_description = " ".join(description.split())
+        if not normalized_description:
+            continue
+        key = (
+            transaction["account_id"],
+            normalized_description,
+            transaction["currency"],
+        )
+        grouped[key].append(transaction)
+
+    candidates = []
+    for (account_id, normalized_description, currency), entries in grouped.items():
+        if len(entries) < 2:
+            continue
+        entries.sort(key=lambda item: item["transaction_date"])
+        dates = [date.fromisoformat(item["transaction_date"]) for item in entries]
+        gaps = [(dates[index] - dates[index - 1]).days for index in range(1, len(dates))]
+        average_gap = sum(gaps) / len(gaps)
+        if 5 <= average_gap <= 9:
+            frequency = "weekly"
+        elif 25 <= average_gap <= 35:
+            frequency = "monthly"
+        else:
+            frequency = "irregular"
+
+        amounts = [abs(Decimal(str(item["amount"]))) for item in entries]
+        average_amount = sum(amounts, Decimal("0")) / len(amounts)
+        candidates.append(
+            {
+                "account_id": account_id,
+                "description": entries[-1]["description"],
+                "average_amount": average_amount,
+                "currency": currency,
+                "occurrence_count": len(entries),
+                "first_seen": dates[0],
+                "last_seen": dates[-1],
+                "frequency": frequency,
+                "confidence": "medium" if len(entries) >= 3 and frequency != "irregular" else "low",
+            }
+        )
+
+    candidates.sort(
+        key=lambda item: (item["last_seen"], item["description"]),
+        reverse=True,
+    )
+    return candidates[:100]
