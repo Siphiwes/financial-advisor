@@ -86,6 +86,36 @@ def _write_audit_event(
         logger.warning("Finance audit event write failed: %s", type(exc).__name__)
 
 
+class FinanceAuditError(RuntimeError):
+    """Raised when a required sensitive-access audit event cannot be stored."""
+
+
+def record_sensitive_access(
+    user: AuthenticatedUser,
+    action: str,
+    resource_type: str,
+) -> None:
+    """Persist a minimal audit event before returning sensitive user data."""
+    try:
+        client, database = _connection()
+        create_user_scoped_document(
+            client,
+            database,
+            user.id,
+            "audit",
+            {
+                "action": action,
+                "resource_type": resource_type,
+                "resource_id": "self",
+                "occurred_at": _now(),
+                "metadata": {"audit_class": "sensitive_access"},
+            },
+        )
+    except Exception as exc:
+        logger.error("Required privacy audit write failed: %s", type(exc).__name__)
+        raise FinanceAuditError("A required privacy audit event could not be stored.") from exc
+
+
 def list_audit_events(user: AuthenticatedUser, *, limit: int = 100) -> list[dict]:
     """Return the authenticated user's most recent non-content audit events."""
     if not 1 <= limit <= 500:
