@@ -15,8 +15,8 @@ from app.api.routes.diagnostics import router as diagnostics_router
 from app.api.routes.finance import router as finance_router
 from app.api.routes.imports import router as imports_router
 from app.api.routes.privacy import router as privacy_router
-from app.services.finance import FinanceAuditError
 from app.services.diagnostics import write_diagnostic_event
+from app.services.finance import FinanceAuditError
 
 # Loads a local .env file when present. Code Engine supplies deployed values
 # through environment variables and does not need a .env file in the image.
