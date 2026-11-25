@@ -517,7 +517,7 @@
         try{
           const categories=values.categories;
           await api("/api/v1/budgets/"+encodeURIComponent(budget.id),{method:"PATCH",body:JSON.stringify({
-            name:values.name,categories,category:categories[0],amount:Number(values.amount).toFixed(2),
+            name:values.name,categories,amount:Number(values.amount).toFixed(2),
             period:values.period,start_date:values.start_date,end_date:values.end_date || null
           })});
           await loadFinanceData();
