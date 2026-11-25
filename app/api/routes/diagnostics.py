@@ -124,5 +124,8 @@ def read_application_diagnostics(
         logger.error("Application diagnostics retrieval failed: %s", type(exc).__name__)
         raise HTTPException(
             status_code=503,
-            detail="System diagnostics are temporarily unavailable because the diagnostic store could not be reached.",
+            detail=(
+                "System diagnostics are temporarily unavailable because "
+                "the diagnostic store could not be reached."
+            ),
         ) from exc
