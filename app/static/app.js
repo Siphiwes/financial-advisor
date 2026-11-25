@@ -84,7 +84,7 @@
     }
     if (!response.ok) {
       const detail = payload && typeof payload === "object" ? payload.detail : payload;
-      if (response.status === 401 && state.token) signOut();
+      if (response.status === 401) signOut();
       throw new ApiError(response.status, typeof detail === "string" ? detail : "The API request failed.");
     }
     return payload;
@@ -95,6 +95,7 @@
   }
 
   function signOut() {
+    fetch("/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
     state.token = null;
     state.user = null;
     state.accounts = [];
@@ -140,7 +141,7 @@
       statusList.append(item);
     });
     $("import-gate-message").classList.toggle("hidden", enabled);
-    $("confirm-import-button").disabled = !enabled || !state.selectedFile;
+    updateImportConfirmState();
     ["account-form","transaction-form","budget-form","goal-form","category-form","advisor-form"]
       .forEach((id) => {
         $(id).querySelectorAll("input,select,textarea,button").forEach((control) => {
@@ -189,6 +190,21 @@
       label: item.name,
     })), "Select expense category");
   }
+
+  function updateImportConfirmState() {
+    const accountSelected = Boolean($("import-account").value);
+    const consentGiven = $("import-consent").checked;
+    $("confirm-import-button").disabled = !(
+      state.financeEnabled &&
+      state.selectedFile &&
+      state.importPreview &&
+      accountSelected &&
+      consentGiven
+    );
+  }
+
+  $("import-account").addEventListener("change", updateImportConfirmState);
+  $("import-consent").addEventListener("change", updateImportConfirmState);
 
   function renderAccounts() {
     const target = $("account-list");
@@ -620,7 +636,7 @@
     if (preview.transaction_count > preview.preview_limit) {
       container.append(el("p", "Showing " + preview.preview_limit + " of " + preview.transaction_count + " transactions. The confirmation endpoint processes the full validated statement.", "muted small"));
     }
-    $("confirm-import-button").disabled = !state.financeEnabled;
+    updateImportConfirmState();
   }
 
   async function loadFinanceData() {
@@ -654,8 +670,7 @@
       renderDebts(value(4, []), value(5, null));
       renderSummary(value(6, null), value(7, []));
       renderImportHistory(value(8, []));
-      $("confirm-import-button").disabled =
-        !state.financeEnabled || !state.selectedFile || !state.importPreview;
+      updateImportConfirmState();
       if (failed.length) {
         const names = [
           "categories", "transactions", "budget progress", "goals", "debts",
@@ -682,7 +697,7 @@
         renderGoals([]);
         renderDebts([], null);
         renderSummary(null, []);
-        $("confirm-import-button").disabled = true;
+        updateImportConfirmState();
         return;
       }
       globalMessage(error.message, true);
@@ -756,20 +771,22 @@
     event.preventDefault();
     message("login-message", "Signing in...");
     try {
-      const token = await api("/auth/token", {
+      await api("/auth/token", {
         method: "POST",
         body: JSON.stringify({
           email: $("email").value.trim(),
           password: $("password").value,
         }),
       });
-      state.token = token.access_token;
+      // The access token is held in an HttpOnly cookie, not JavaScript memory.
+      state.token = null;
       state.user = await api("/auth/me");
       $("password").value = "";
       message("login-message", "", "");
       await beginWorkspace();
     } catch (error) {
       state.token = null;
+      fetch("/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
       message("login-message", error.message, "error");
     }
   });
@@ -1176,6 +1193,7 @@
         method: "DELETE",
         body: JSON.stringify({ current_password: $("delete-password").value }),
       });
+      fetch("/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
       state.token = null;
       state.user = null;
       $("delete-password").value = "";
@@ -1192,6 +1210,18 @@
   });
 
   processAccountLink();
+
+  async function restoreSession() {
+    try {
+      state.user = await api("/auth/me");
+      await beginWorkspace();
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) {
+        globalMessage(error.message, true);
+      }
+    }
+  }
+  restoreSession();
 
   fetch("/health", { credentials: "same-origin" })
     .then((response) => {
