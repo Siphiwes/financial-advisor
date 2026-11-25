@@ -4,11 +4,11 @@ All persisted records are scoped to the authenticated user. Monetary values are
 stored as decimal strings to avoid binary floating-point conversion.
 """
 
+import copy
 import hashlib
 import json
 import logging
 import re
-import copy
 import threading
 import time
 from calendar import monthrange
