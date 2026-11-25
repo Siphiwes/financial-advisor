@@ -238,11 +238,14 @@
       const id = "dialog-field-" + field.name;
       label.htmlFor = id;
       let control;
-      if (field.type === "select") {
+      if (field.type === "select" || field.type === "multiselect") {
         control = el("select");
+        control.multiple = field.type === "multiselect";
+        if (control.multiple) control.size = Math.min(7, (field.options || []).length || 4);
         (field.options || []).forEach((entry) => {
           const option = el("option", entry.label);
           option.value = entry.value;
+          option.selected = control.multiple ? (field.value || []).includes(entry.value) : String(field.value ?? "") === entry.value;
           control.append(option);
         });
       } else if (field.type === "textarea") {
@@ -254,7 +257,9 @@
       }
       control.id = id;
       control.name = field.name;
-      control.value = field.value === null || field.value === undefined ? "" : String(field.value);
+      if (field.type !== "multiselect" && field.type !== "select") {
+        control.value = field.value === null || field.value === undefined ? "" : String(field.value);
+      }
       if (field.required) control.required = true;
       if (field.min !== undefined) control.min = String(field.min);
       if (field.max !== undefined) control.max = String(field.max);
@@ -284,8 +289,10 @@
         const values = {};
         fields.forEach((field) => {
           const control = controls[field.name];
-          values[field.name] = field.type === "number" ? Number(control.value) :
-            (field.type === "textarea" || field.type === "text" ? control.value.trim() : control.value);
+          values[field.name] = field.type === "multiselect" ?
+            Array.from(control.selectedOptions).map((option)=>option.value) :
+            (field.type === "number" ? Number(control.value) :
+              (field.type === "textarea" || field.type === "text" ? control.value.trim() : control.value));
         });
         dialog.close();
         finish(values);
@@ -500,7 +507,7 @@
       edit.addEventListener("click",async()=>{
         const values=await showAppDialog({title:"Edit budget",fields:[
           {name:"name",label:"Budget name",value:budget.name,required:true,maxLength:100},
-          {name:"categories",label:"Categories (comma-separated)",value:(budget.categories || [budget.category]).join(", "),required:true,maxLength:1200},
+          {name:"categories",label:"Income and expense categories",type:"multiselect",value:budget.categories || [budget.category],required:true,options:state.categories.filter((item)=>item.is_active && (item.kind==="income" || item.kind==="expense")).map((item)=>({value:item.name,label:item.name+" ("+item.kind+")"}))},
           {name:"amount",label:"Budget limit",type:"number",value:budget.amount,required:true,min:0.01,step:0.01},
           {name:"period",label:"Period",type:"select",value:budget.period,options:[{value:"weekly",label:"Weekly"},{value:"monthly",label:"Monthly"},{value:"quarterly",label:"Quarterly"},{value:"yearly",label:"Yearly"}]},
           {name:"start_date",label:"Start date",type:"date",value:budget.start_date,required:true},
@@ -508,7 +515,7 @@
         ]});
         if(!values)return;
         try{
-          const categories=values.categories.split(",").map(v=>v.trim()).filter(Boolean);
+          const categories=values.categories;
           await api("/api/v1/budgets/"+encodeURIComponent(budget.id),{method:"PATCH",body:JSON.stringify({
             name:values.name,categories,category:categories[0],amount:Number(values.amount).toFixed(2),
             period:values.period,start_date:values.start_date,end_date:values.end_date || null
@@ -698,44 +705,37 @@
       card.append(top);
       card.append(el("p", "Original " + money(debt.original_amount, debt.currency) + " · Monthly repayment " + money(debt.monthly_payment, debt.currency) + (debt.interest_rate === null ? "" : " · Interest " + debt.interest_rate + "%"), "muted small"));
       const actions = el("div", undefined, "record-actions");
-      const update = el("button", "Update balance", "button button-secondary");
-      update.type = "button";
-      update.addEventListener("click", async () => {
-        const value = window.prompt("Enter the latest outstanding balance", String(debt.current_balance));
-        if (value === null) return;
-        const amount = Number(value);
-        if (!Number.isFinite(amount) || amount < 0) {
-          globalMessage("Enter a valid outstanding balance.", true);
-          return;
-        }
-        try {
-          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({current_balance:amount.toFixed(2)})});
-          await loadFinanceData();
-        } catch (error) { globalMessage(error.message, true); }
-      });
-      const edit = el("button", "Edit details", "button button-secondary");
+      const edit = el("button", "Edit debt details", "button button-secondary");
       edit.type = "button";
       edit.addEventListener("click", async () => {
-        const creditor = window.prompt("Creditor / lender", debt.creditor);
-        if (creditor === null) return;
-        const name = window.prompt("Debt name", debt.debt_name);
-        if (name === null) return;
-        const payment = window.prompt("Monthly repayment", String(debt.monthly_payment));
-        if (payment === null) return;
-        const rate = window.prompt("Annual interest rate (%)", debt.interest_rate === null ? "" : String(debt.interest_rate));
-        if (rate === null) return;
-        const amount = Number(payment);
-        const interest = rate.trim() ? Number(rate) : null;
-        if (!creditor.trim() || !name.trim() || !Number.isFinite(amount) || amount < 0 || (interest !== null && (!Number.isFinite(interest) || interest < 0 || interest > 100))) {
-          globalMessage("Enter valid creditor, debt name, repayment and interest values.", true);
-          return;
-        }
+        const values = await showAppDialog({title:"Update debt",fields:[
+          {name:"creditor",label:"Creditor / lender",value:debt.creditor,required:true,maxLength:120},
+          {name:"debt_name",label:"Debt name",value:debt.debt_name,required:true,maxLength:120},
+          {name:"debt_type",label:"Debt type",type:"select",value:debt.debt_type,options:[
+            {value:"personal_loan",label:"Personal loan"},{value:"credit_card",label:"Credit card"},
+            {value:"vehicle_finance",label:"Vehicle finance"},{value:"home_loan",label:"Home loan"},
+            {value:"student_loan",label:"Student loan"},{value:"overdraft",label:"Overdraft"},{value:"other",label:"Other"}]},
+          {name:"original_amount",label:"Original amount",type:"number",value:debt.original_amount,required:true,min:0.01,step:0.01},
+          {name:"current_balance",label:"Outstanding balance",type:"number",value:debt.current_balance,required:true,min:0,step:0.01},
+          {name:"monthly_payment",label:"Monthly repayment",type:"number",value:debt.monthly_payment,min:0,step:0.01},
+          {name:"interest_rate",label:"Annual interest rate (%)",type:"number",value:debt.interest_rate ?? "",min:0,max:100,step:0.001},
+          {name:"opened_date",label:"Start date",type:"date",value:debt.opened_date || ""},
+          {name:"due_date",label:"Next due date",type:"date",value:debt.due_date || ""},
+          {name:"notes",label:"Notes",type:"textarea",value:debt.notes || "",maxLength:2000}
+        ]});
+        if(!values)return;
         try {
-          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({creditor:creditor.trim(),debt_name:name.trim(),monthly_payment:amount.toFixed(2),interest_rate:interest===null?null:interest.toFixed(3)})});
+          await api("/api/v1/debts/"+encodeURIComponent(debt.id),{method:"PATCH",body:JSON.stringify({
+            ...values,original_amount:Number(values.original_amount).toFixed(2),
+            current_balance:Number(values.current_balance).toFixed(2),
+            monthly_payment:Number(values.monthly_payment || 0).toFixed(2),
+            interest_rate:values.interest_rate === "" ? null : Number(values.interest_rate).toFixed(3),
+            opened_date:values.opened_date || null,due_date:values.due_date || null,notes:values.notes || null
+          })});
           await loadFinanceData();
-        } catch (error) { globalMessage(error.message, true); }
+        } catch(error){globalMessage(error.message,true);}
       });
-      actions.append(update, edit);
+      actions.append(edit);
       card.append(actions);
       const history = debt.balance_history || [];
       card.append(el("p", history.length > 1 ? "Balance updates recorded: " + (history.length - 1) : "Initial balance recorded. Update it over time to track the trend.", "muted small"));
