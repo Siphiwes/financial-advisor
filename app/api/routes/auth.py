@@ -4,9 +4,9 @@ import hmac
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import ACCESS_TOKEN_COOKIE, get_current_user
 from app.core.config import get_setting
 from app.core.rate_limit import (
     RateLimitExceeded,
@@ -206,7 +206,7 @@ def register(
     response_model=TokenResponse,
     summary="Exchange account credentials for an access token",
 )
-def issue_token(payload: LoginRequest, request: Request) -> TokenResponse:
+def issue_token(payload: LoginRequest, request: Request, response: Response) -> TokenResponse:
     """Authenticate an account and issue a short-lived signed bearer token."""
     _enforce_auth_limit(
         "login-peer",
@@ -253,9 +253,19 @@ def issue_token(payload: LoginRequest, request: Request) -> TokenResponse:
             user_document_id=user_document["_id"],
             auth_version=user_document.get("auth_version", 1),
         )
+        expires_in = get_access_token_expiry_seconds()
+        response.set_cookie(
+            key=ACCESS_TOKEN_COOKIE,
+            value=token,
+            max_age=expires_in,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            path="/",
+        )
         return TokenResponse(
             access_token=token,
-            expires_in=get_access_token_expiry_seconds(),
+            expires_in=expires_in,
         )
     except HTTPException:
         raise
@@ -271,6 +281,21 @@ def issue_token(payload: LoginRequest, request: Request) -> TokenResponse:
             detail="Authentication could not be completed.",
         ) from exc
 
+
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Clear the browser session")
+def logout(response: Response) -> Response:
+    """Clear the browser's HttpOnly session cookie."""
+    response.delete_cookie(
+        key=ACCESS_TOKEN_COOKIE,
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 @router.get(
     "/me",
