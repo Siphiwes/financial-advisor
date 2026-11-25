@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -15,6 +16,7 @@ from app.api.routes.finance import router as finance_router
 from app.api.routes.imports import router as imports_router
 from app.api.routes.privacy import router as privacy_router
 from app.services.finance import FinanceAuditError
+from app.services.diagnostics import write_diagnostic_event
 
 # Loads a local .env file when present. Code Engine supplies deployed values
 # through environment variables and does not need a .env file in the image.
@@ -37,18 +39,49 @@ def create_app() -> FastAPI:
     application.include_router(advisor_router)
     application.include_router(privacy_router)
 
+    @application.middleware("http")
+    async def attach_request_id(request, call_next):
+        request_id = uuid4().hex
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
     @application.exception_handler(Exception)
     async def unhandled_exception(request, exc):
-        # Preserve the full server-side traceback for diagnosis while keeping
-        # internal details and financial data out of the HTTP response.
+        diagnostic_id = getattr(request.state, "request_id", uuid4().hex)
         logger.exception(
-            "Unhandled request failure method=%s path=%s",
+            "Unhandled request failure diagnostic_id=%s method=%s path=%s",
+            diagnostic_id,
             request.method,
             request.url.path,
         )
+        write_diagnostic_event(
+            diagnostic_id=diagnostic_id,
+            user_id=getattr(request.state, "user_id", None),
+            method=request.method,
+            path=request.url.path,
+            status_code=500,
+            exception=exc,
+        )
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error. Check application logs."},
+            headers={"X-Request-ID": diagnostic_id},
+            content={
+                "detail": (
+                    f"Problem found on Server connection. Issue caused by API "
+                    f"{request.method} {request.url.path}. "
+                    "The server could not complete this operation."
+                ),
+                "error": {
+                    "category": "server_error",
+                    "module": "Server connection",
+                    "endpoint": request.url.path,
+                    "method": request.method,
+                    "diagnostic_id": diagnostic_id,
+                    "status_code": 500,
+                },
+            },
         )
 
     @application.exception_handler(FinanceAuditError)
