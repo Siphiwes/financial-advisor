@@ -696,15 +696,28 @@ def commit_fnb_import(
             else:
                 duplicate_count += 1
 
-        bulk_result = bulk_create_user_scoped_documents(
-            client,
-            database,
-            user.id,
-            "transactions",
-            records_to_create,
-        )
-        imported_count += bulk_result["created"]
-        duplicate_count += bulk_result["conflicts"]
+        for batch_start in range(0, len(records_to_create), 50):
+            batch_records = records_to_create[batch_start : batch_start + 50]
+            bulk_result = bulk_create_user_scoped_documents(
+                client,
+                database,
+                user.id,
+                "transactions",
+                batch_records,
+            )
+            imported_count += bulk_result["created"]
+            duplicate_count += bulk_result["conflicts"]
+            progress_data = dict(batch_document["data"])
+            progress_data.update({
+                "status": "processing",
+                "imported_count": imported_count,
+                "duplicate_count": duplicate_count,
+                "updated_at": _now(),
+            })
+            update_user_scoped_document(
+                client, database, user.id, "imports", batch_id, progress_data
+            )
+            batch_document["data"] = progress_data
 
     except Exception:
         batch_data = dict(batch_document["data"])
