@@ -23,6 +23,7 @@ class FinancialAccountUpdate(BaseModel):
 
     display_name: str | None = Field(default=None, min_length=1, max_length=80)
     account_type: AccountType | None = None
+    account_last_four: str | None = Field(default=None, pattern=r"^\d{4}$")
     is_active: bool | None = None
 
 class FinancialAccountResponse(BaseModel):
@@ -78,7 +79,7 @@ class TransactionResponse(BaseModel):
     balance_after: Decimal | None
     category: str | None
     notes: str | None
-    source: Literal["manual", "fnb_csv"]
+    source: Literal["manual", "fnb_csv", "fnb_pdf"]
     import_id: str | None
     original: dict
     corrections: list[dict]
@@ -93,7 +94,8 @@ class TransactionListResponse(BaseModel):
 
 class BudgetCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    category: str = Field(min_length=1, max_length=80)
+    category: str | None = Field(default=None, min_length=1, max_length=80)
+    categories: list[str] = Field(default_factory=list, max_length=30)
     amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
     currency: str = Field(default="ZAR", pattern=r"^[A-Z]{3}$")
     period: BudgetPeriod = "monthly"
@@ -111,8 +113,11 @@ class BudgetCreate(BaseModel):
 class BudgetUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     category: str | None = Field(default=None, min_length=1, max_length=80)
+    categories: list[str] | None = Field(default=None, min_length=1, max_length=30)
     amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
     period: BudgetPeriod | None = None
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    start_date: date | None = None
     end_date: date | None = None
     is_active: bool | None = None
 
@@ -120,6 +125,7 @@ class BudgetResponse(BaseModel):
     id: str
     name: str
     category: str
+    categories: list[str] = Field(default_factory=list)
     amount: Decimal
     currency: str
     period: BudgetPeriod
@@ -281,6 +287,9 @@ class DebtCreate(BaseModel):
 
 
 class DebtUpdate(BaseModel):
+    original_amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    opened_date: date | None = None
     creditor: str | None = Field(default=None, min_length=1, max_length=120)
     debt_name: str | None = Field(default=None, min_length=1, max_length=120)
     debt_type: DebtType | None = None

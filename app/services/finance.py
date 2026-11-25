@@ -4,10 +4,13 @@ All persisted records are scoped to the authenticated user. Monetary values are
 stored as decimal strings to avoid binary floating-point conversion.
 """
 
+import copy
 import hashlib
 import json
 import logging
 import re
+import threading
+import time
 from calendar import monthrange
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
@@ -38,6 +41,15 @@ from app.schemas.finance import (
 from app.services.fnb_csv import FNBStatement
 
 logger = logging.getLogger(__name__)
+_LIST_CACHE_TTL_SECONDS = 5.0
+_LIST_CACHE: dict[tuple, tuple[float, tuple[list[dict], bool]]] = {}
+_LIST_CACHE_LOCK = threading.RLock()
+
+
+def _invalidate_list_cache(user_id: str, collection: str) -> None:
+    with _LIST_CACHE_LOCK:
+        for key in [key for key in _LIST_CACHE if key[0] == user_id and key[1] == collection]:
+            _LIST_CACHE.pop(key, None)
 
 
 class FinanceRecordNotFoundError(LookupError):
@@ -185,6 +197,7 @@ def _create_record(
         data,
         record_id=record_id,
     )
+    _invalidate_list_cache(user_id, collection)
     if collection != "audit":
         _write_audit_event(user_id, "create", collection, saved_id)
     return _read_record(user_id, collection, saved_id)
@@ -199,6 +212,7 @@ def _update_record(user_id: str, collection: str, record_id: str, data: dict) ->
         raise FinanceRecordNotFoundError(
             "The requested record was not found."
         ) from exc
+    _invalidate_list_cache(user_id, collection)
     if collection != "audit":
         _write_audit_event(user_id, "update", collection, record_id)
     return _read_record(user_id, collection, record_id)
@@ -210,6 +224,12 @@ def _list_records(
     limit: int = 100,
     offset: int = 0,
 ) -> tuple[list[dict], bool]:
+    cache_key = (user_id, collection, limit, offset)
+    now = time.monotonic()
+    with _LIST_CACHE_LOCK:
+        cached = _LIST_CACHE.get(cache_key)
+        if cached and now - cached[0] < _LIST_CACHE_TTL_SECONDS:
+            return copy.deepcopy(cached[1])
     client, database = _connection()
     documents, has_more = list_user_scoped_documents(
         client,
@@ -219,7 +239,10 @@ def _list_records(
         limit=limit,
         offset=offset,
     )
-    return [_record_view(document) for document in documents], has_more
+    result = ([_record_view(document) for document in documents], has_more)
+    with _LIST_CACHE_LOCK:
+        _LIST_CACHE[cache_key] = (time.monotonic(), copy.deepcopy(result))
+    return result
 
 def _list_all_records(user_id: str, collection: str) -> tuple[list[dict], bool]:
     return _list_records(
@@ -248,7 +271,7 @@ def create_financial_account(user: AuthenticatedUser, payload) -> dict:
 
 def list_financial_accounts(user: AuthenticatedUser) -> list[dict]:
     items, _ = _list_records(user.id, "accounts", limit=500)
-    return [item for item in items if item.get("is_active", True)]
+    return items
 
 def update_financial_account(user: AuthenticatedUser, account_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "accounts", account_id)
@@ -392,10 +415,16 @@ def delete_transaction(user: AuthenticatedUser, transaction_id: str) -> dict:
     return _record_view(_update_record(user.id, "transactions", transaction_id, data))
 
 def create_budget(user: AuthenticatedUser, payload) -> dict:
-    category = _validated_category(user, payload.category)
+    selected_categories = payload.categories or ([payload.category] if payload.category else [])
+    categories = list(dict.fromkeys(
+        _validated_category(user, item) for item in selected_categories
+    ))
+    if not categories:
+        raise FinanceValidationError("Select at least one income or expense category.")
     data = {
         "name": payload.name.strip(),
-        "category": category,
+        "category": categories[0],
+        "categories": categories,
         "amount": _decimal_text(payload.amount),
         "currency": payload.currency,
         "period": payload.period,
@@ -413,10 +442,20 @@ def update_budget(user: AuthenticatedUser, budget_id: str, changes: dict) -> dic
     document = _read_record(user.id, "budgets", budget_id)
     data = dict(document["data"])
     for key, value in changes.items():
-        if value is None:
+        if value is None and key != "end_date":
             continue
         if key == "category":
             value = _validated_category(user, value)
+            data["category"] = value
+            data["categories"] = [value]
+            continue
+        if key == "categories":
+            value = list(dict.fromkeys(_validated_category(user, item) for item in value))
+            if not value:
+                raise FinanceValidationError("Select at least one budget category.")
+            data["categories"] = value
+            data["category"] = value[0]
+            continue
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
         )
@@ -443,7 +482,7 @@ def update_goal(user: AuthenticatedUser, goal_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "goals", goal_id)
     data = dict(document["data"])
     for key, value in changes.items():
-        if value is None and key != "target_date":
+        if value is None and key not in {"target_date", "description"}:
             continue
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
@@ -680,15 +719,30 @@ def commit_fnb_import(
             else:
                 duplicate_count += 1
 
-        bulk_result = bulk_create_user_scoped_documents(
-            client,
-            database,
-            user.id,
-            "transactions",
-            records_to_create,
-        )
-        imported_count += bulk_result["created"]
-        duplicate_count += bulk_result["conflicts"]
+        for batch_start in range(0, len(records_to_create), 50):
+            batch_records = records_to_create[batch_start : batch_start + 50]
+            bulk_result = bulk_create_user_scoped_documents(
+                client,
+                database,
+                user.id,
+                "transactions",
+                batch_records,
+            )
+            imported_count += bulk_result["created"]
+            duplicate_count += bulk_result["conflicts"]
+            progress_data = dict(batch_document["data"])
+            progress_data.update({
+                "status": "processing",
+                "imported_count": imported_count,
+                "duplicate_count": duplicate_count,
+                "updated_at": _now(),
+            })
+            update_user_scoped_document(
+                client, database, user.id, "imports", batch_id, progress_data
+            )
+            _invalidate_list_cache(user.id, "imports")
+            _invalidate_list_cache(user.id, "transactions")
+            batch_document["data"] = progress_data
 
     except Exception:
         batch_data = dict(batch_document["data"])
@@ -704,9 +758,25 @@ def commit_fnb_import(
             update_user_scoped_document(
                 client, database, user.id, "imports", batch_id, batch_data
             )
+            _invalidate_list_cache(user.id, "imports")
+            _invalidate_list_cache(user.id, "transactions")
         except Exception:
             pass
         raise
+
+    completed_data = dict(batch_document["data"])
+    completed_data.update({
+        "status": "completed",
+        "imported_count": imported_count,
+        "duplicate_count": duplicate_count,
+        "completed_at": _now(),
+        "updated_at": _now(),
+    })
+    update_user_scoped_document(
+        client, database, user.id, "imports", batch_id, completed_data
+    )
+    _invalidate_list_cache(user.id, "imports")
+    _invalidate_list_cache(user.id, "transactions")
 
     _write_audit_event(
         user.id,
@@ -919,7 +989,7 @@ def update_debt(user: AuthenticatedUser, debt_id: str, changes: dict) -> dict:
     for key, value in changes.items():
         if key == "current_balance":
             continue
-        if value is None and key != "due_date":
+        if value is None and key not in {"due_date", "opened_date", "interest_rate", "notes"}:
             continue
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
@@ -1064,6 +1134,9 @@ def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) 
     today = today or date.today()
     budgets = list_budgets(user)
     transactions, _ = _list_all_records(user.id, "transactions")
+    category_kinds = {
+        item["name"].casefold(): item["kind"] for item in list_categories(user)
+    }
     progress = []
 
     for budget in budgets:
@@ -1076,12 +1149,18 @@ def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) 
                 transaction_date = date.fromisoformat(transaction["transaction_date"])
                 if not period_start <= transaction_date <= min(period_end, today):
                     continue
-                if transaction.get("category") != budget["category"]:
+                selected_categories = budget.get("categories") or [budget.get("category")]
+                if transaction.get("category") not in selected_categories:
                     continue
                 if transaction.get("currency") != budget["currency"]:
                     continue
                 amount = Decimal(str(transaction["amount"]))
-                if amount < 0:
+                category_kind = category_kinds.get(
+                    str(transaction.get("category") or "").casefold(), "expense"
+                )
+                if category_kind == "income" and amount > 0:
+                    spent += amount
+                elif category_kind == "expense" and amount < 0:
                     spent += abs(amount)
 
         budget_amount = Decimal(str(budget["amount"]))

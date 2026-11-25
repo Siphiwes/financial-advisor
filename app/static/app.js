@@ -176,9 +176,11 @@
 
   function setOptions(select, options, placeholder) {
     while (select.firstChild) select.removeChild(select.firstChild);
-    const blank = el("option", placeholder);
-    blank.value = "";
-    select.append(blank);
+    if (!select.multiple) {
+      const blank = el("option", placeholder);
+      blank.value = "";
+      select.append(blank);
+    }
     options.forEach((entry) => {
       const option = el("option", entry.label);
       option.value = entry.value;
@@ -199,10 +201,10 @@
       value: item.name,
       label: item.name,
     })), "Uncategorised");
-    setOptions($("budget-category"), categories.filter((item) => item.kind === "expense").map((item) => ({
+    setOptions($("budget-category"), categories.filter((item) => item.kind === "expense" || item.kind === "income").map((item) => ({
       value: item.name,
-      label: item.name,
-    })), "Select expense category");
+      label: item.name + " (" + item.kind + ")",
+    })), "Select income or expense categories");
   }
 
   function updateImportConfirmState() {
@@ -220,6 +222,101 @@
   $("import-account").addEventListener("change", updateImportConfirmState);
   $("import-consent").addEventListener("change", updateImportConfirmState);
 
+
+  function showAppDialog({title, description, fields = [], submitLabel = "Save changes"}) {
+    const dialog = $("app-dialog");
+    const form = $("app-dialog-form");
+    const content = $("app-dialog-content");
+    $("app-dialog-title").textContent = title;
+    $("app-dialog-submit").textContent = submitLabel;
+    content.replaceChildren();
+    if (description) content.append(el("p", description, "muted"));
+    const controls = {};
+    fields.forEach((field) => {
+      const wrapper = el("div", undefined, "app-dialog-field");
+      const label = el("label", field.label);
+      const id = "dialog-field-" + field.name;
+      label.htmlFor = id;
+      let control;
+      if (field.type === "select" || field.type === "multiselect") {
+        control = el("select");
+        control.multiple = field.type === "multiselect";
+        if (control.multiple) control.size = Math.min(7, (field.options || []).length || 4);
+        (field.options || []).forEach((entry) => {
+          const option = el("option", entry.label);
+          option.value = entry.value;
+          option.selected = control.multiple ? (field.value || []).includes(entry.value) : String(field.value ?? "") === entry.value;
+          control.append(option);
+        });
+      } else if (field.type === "textarea") {
+        control = el("textarea");
+        control.rows = field.rows || 3;
+      } else {
+        control = el("input");
+        control.type = field.type || "text";
+      }
+      control.id = id;
+      control.name = field.name;
+      if (field.type !== "multiselect" && field.type !== "select") {
+        control.value = field.value === null || field.value === undefined ? "" : String(field.value);
+      }
+      if (field.required) control.required = true;
+      if (field.min !== undefined) control.min = String(field.min);
+      if (field.max !== undefined) control.max = String(field.max);
+      if (field.step !== undefined) control.step = String(field.step);
+      if (field.maxLength !== undefined) control.maxLength = field.maxLength;
+      if (field.pattern) control.pattern = field.pattern;
+      wrapper.append(label, control);
+      content.append(wrapper);
+      controls[field.name] = control;
+    });
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        dialog.removeEventListener("close", onClose);
+        form.removeEventListener("submit", onSubmit);
+        $("app-dialog-cancel").removeEventListener("click", onCancel);
+        $("app-dialog-close").removeEventListener("click", onCancel);
+        resolve(value);
+      };
+      const onClose = () => finish(null);
+      const onCancel = () => dialog.close();
+      const onSubmit = (event) => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        const values = {};
+        fields.forEach((field) => {
+          const control = controls[field.name];
+          values[field.name] = field.type === "multiselect" ?
+            Array.from(control.selectedOptions).map((option)=>option.value) :
+            (field.type === "number" ? Number(control.value) :
+              (field.type === "textarea" || field.type === "text" ? control.value.trim() : control.value));
+        });
+        dialog.close();
+        finish(values);
+      };
+      dialog.addEventListener("close", onClose);
+      form.addEventListener("submit", onSubmit);
+      $("app-dialog-cancel").addEventListener("click", onCancel);
+      $("app-dialog-close").addEventListener("click", onCancel);
+      dialog.showModal();
+      const first = content.querySelector("input,select,textarea");
+      if (first) first.focus();
+    });
+  }
+
+  async function confirmInApp(description, confirmLabel = "Confirm") {
+    const result = await showAppDialog({
+      title: "Confirm action",
+      description,
+      fields: [],
+      submitLabel: confirmLabel,
+    });
+    return result !== null;
+  }
+
   function renderAccounts() {
     const target = $("account-list");
     target.replaceChildren();
@@ -234,19 +331,37 @@
       top.append(el("span", account.is_active ? "Active" : "Inactive", "status-pill status-success"));
       card.append(top);
       const actions = el("div", undefined, "record-actions");
-      const deactivate = el("button", "Deactivate", "button button-secondary");
-      deactivate.type = "button";
-      deactivate.disabled = !account.is_active;
-      deactivate.addEventListener("click", async () => {
-        if (!window.confirm("Deactivate this linked account? Existing transactions will remain.")) return;
+      const edit = el("button", "Edit details", "button button-secondary");
+      edit.type = "button";
+      edit.addEventListener("click", async () => {
+        const values = await showAppDialog({title:"Edit financial account",fields:[
+          {name:"display_name",label:"Display name",value:account.display_name,required:true,maxLength:80},
+          {name:"account_type",label:"Account type",type:"select",value:account.account_type,options:[
+            {value:"cheque",label:"Cheque"},{value:"savings",label:"Savings"},{value:"credit_card",label:"Credit card"},
+            {value:"investment",label:"Investment"},{value:"loan",label:"Loan"},{value:"other",label:"Other"}]},
+          {name:"account_last_four",label:"Last four digits",value:account.account_last_four,required:true,pattern:"[0-9]{4}",maxLength:4}
+        ]});
+        if (!values) return;
         try {
-          await api("/api/v1/accounts/" + encodeURIComponent(account.id), { method: "DELETE" });
+          await api("/api/v1/accounts/" + encodeURIComponent(account.id),{method:"PATCH",body:JSON.stringify(values)});
           await loadFinanceData();
-        } catch (error) {
-          globalMessage(error.message, true);
-        }
+        } catch(error){globalMessage(error.message,true);}
       });
-      actions.append(deactivate);
+      const toggle = el("button", account.is_active ? "Deactivate" : "Reactivate", "button button-secondary");
+      toggle.type = "button";
+      toggle.addEventListener("click", async () => {
+        const accepted = await confirmInApp(account.is_active ?
+          "Deactivate this linked account? Existing transactions will remain." :
+          "Reactivate this linked account?");
+        if (!accepted) return;
+        try {
+          await api("/api/v1/accounts/" + encodeURIComponent(account.id),{
+            method:"PATCH",body:JSON.stringify({is_active:!account.is_active})
+          });
+          await loadFinanceData();
+        } catch(error){globalMessage(error.message,true);}
+      });
+      actions.append(edit,toggle);
       card.append(actions);
       target.append(card);
     });
@@ -297,8 +412,9 @@
       const suggest = el("button", "Suggest category with AI", "button button-secondary");
       suggest.type = "button";
       suggest.addEventListener("click", async () => {
-        const consent = window.confirm(
-          "Send this transaction's full stored details, including its description, reference and account identifier, plus the associated account record and category names, to IBM watsonx.ai for a category suggestion?"
+        const consent = await confirmInApp(
+          "Send this transaction's full stored details, including its description, reference and account identifier, plus the associated account record and category names, to IBM watsonx.ai for a category suggestion?",
+          "Continue"
         );
         if (!consent) return;
         try {
@@ -309,10 +425,11 @@
               body: JSON.stringify({ consent_to_share_transaction: true }),
             }
           );
-          const apply = window.confirm(
+          const apply = await confirmInApp(
             "AI suggests: " + result.suggested_category +
-            "\n\nReason: " + result.explanation +
-            "\n\nApply this category? The original imported transaction details will remain preserved."
+            ". Reason: " + result.explanation +
+            ". Apply this category? The original imported transaction details will remain preserved.",
+            "Apply category"
           );
           if (apply) {
             await api("/api/v1/transactions/" + encodeURIComponent(item.id), {
@@ -328,7 +445,7 @@
       const remove = el("button", "Delete", "button button-quiet");
       remove.type = "button";
       remove.addEventListener("click", async () => {
-        if (!window.confirm("Remove this transaction from your active history?")) return;
+        if (!await confirmInApp("Remove this transaction from your active history?")) return;
         try {
           await api("/api/v1/transactions/" + encodeURIComponent(item.id), { method: "DELETE" });
           await loadFinanceData();
@@ -345,24 +462,24 @@
   }
 
   async function editTransaction(item) {
-    const description = window.prompt("Transaction description", item.description);
-    if (description === null) return;
-    const amountText = window.prompt("Amount (negative for debit)", String(item.amount));
-    if (amountText === null) return;
-    const amount = Number(amountText);
-    if (!Number.isFinite(amount)) {
-      globalMessage("Enter a valid amount.", true);
-      return;
-    }
+    const values = await showAppDialog({title:"Edit transaction",fields:[
+      {name:"transaction_date",label:"Transaction date",type:"date",value:item.transaction_date,required:true},
+      {name:"description",label:"Description",value:item.description,required:true,maxLength:500},
+      {name:"reference",label:"Reference",value:item.reference || "",maxLength:160},
+      {name:"amount",label:"Amount (negative for debit)",type:"number",value:item.amount,required:true,step:"0.01"},
+      {name:"category",label:"Category",type:"select",value:item.category || "",options:[
+        {value:"",label:"Uncategorised"},...state.categories.filter((entry)=>entry.is_active).map((entry)=>({value:entry.name,label:entry.name}))
+      ]},
+      {name:"notes",label:"Notes",type:"textarea",value:item.notes || "",maxLength:2000}
+    ]});
+    if (!values) return;
     try {
       await api("/api/v1/transactions/" + encodeURIComponent(item.id), {
-        method: "PATCH",
-        body: JSON.stringify({ description, amount: amount.toFixed(2) }),
+        method:"PATCH",
+        body:JSON.stringify({...values,amount:Number(values.amount).toFixed(2),reference:values.reference || null,category:values.category || null,notes:values.notes || null})
       });
       await loadFinanceData();
-    } catch (error) {
-      globalMessage(error.message, true);
-    }
+    } catch(error){globalMessage(error.message,true);}
   }
 
   function renderBudgets(items) {
@@ -383,7 +500,36 @@
       fill.style.width = percent + "%";
       bar.append(fill);
       card.append(bar);
-      card.append(el("p", money(budget.spent, budget.currency) + " spent · " + money(budget.remaining, budget.currency) + " remaining · " + percent.toFixed(1) + "% used", "muted small"));
+      card.append(el("p", money(budget.spent, budget.currency) + " recorded across selected categories · " + money(budget.remaining, budget.currency) + " remaining · " + percent.toFixed(1) + "% used", "muted small"));
+      card.append(el("p", "Categories: " + (budget.categories || [budget.category]).join(", "), "muted small"));
+      const actions = el("div",undefined,"record-actions");
+      const edit = el("button","Edit budget","button button-secondary"); edit.type="button";
+      edit.addEventListener("click",async()=>{
+        const values=await showAppDialog({title:"Edit budget",fields:[
+          {name:"name",label:"Budget name",value:budget.name,required:true,maxLength:100},
+          {name:"categories",label:"Income and expense categories",type:"multiselect",value:budget.categories || [budget.category],required:true,options:state.categories.filter((item)=>item.is_active && (item.kind==="income" || item.kind==="expense")).map((item)=>({value:item.name,label:item.name+" ("+item.kind+")"}))},
+          {name:"amount",label:"Budget limit",type:"number",value:budget.amount,required:true,min:0.01,step:0.01},
+          {name:"period",label:"Period",type:"select",value:budget.period,options:[{value:"weekly",label:"Weekly"},{value:"monthly",label:"Monthly"},{value:"quarterly",label:"Quarterly"},{value:"yearly",label:"Yearly"}]},
+          {name:"start_date",label:"Start date",type:"date",value:budget.start_date,required:true},
+          {name:"end_date",label:"End date",type:"date",value:budget.end_date || ""}
+        ]});
+        if(!values)return;
+        try{
+          const categories=values.categories;
+          await api("/api/v1/budgets/"+encodeURIComponent(budget.id),{method:"PATCH",body:JSON.stringify({
+            name:values.name,categories,amount:Number(values.amount).toFixed(2),
+            period:values.period,start_date:values.start_date,end_date:values.end_date || null
+          })});
+          await loadFinanceData();
+        }catch(error){globalMessage(error.message,true);}
+      });
+      const remove=el("button","Delete","button button-quiet");remove.type="button";
+      remove.addEventListener("click",async()=>{
+        if(!await confirmInApp("Delete this budget? Its record will be deactivated and won't be used for future progress."))return;
+        try{await api("/api/v1/budgets/"+encodeURIComponent(budget.id),{method:"DELETE"});await loadFinanceData();}
+        catch(error){globalMessage(error.message,true);}
+      });
+      actions.append(edit,remove);card.append(actions);
       target.append(card);
     });
   }
@@ -437,6 +583,28 @@
         }
       });
       card.append(form);
+      const actions=el("div",undefined,"record-actions");
+      const edit=el("button","Edit goal","button button-secondary");edit.type="button";
+      edit.addEventListener("click",async()=>{
+        const values=await showAppDialog({title:"Edit financial goal",fields:[
+          {name:"name",label:"Goal name",value:goal.name,required:true,maxLength:100},
+          {name:"description",label:"Description",type:"textarea",value:goal.description || "",maxLength:1000},
+          {name:"target_amount",label:"Target amount",type:"number",value:goal.target_amount,required:true,min:0.01,step:0.01},
+          {name:"target_date",label:"Target date",type:"date",value:goal.target_date || ""}
+        ]});
+        if(!values)return;
+        try{await api("/api/v1/goals/"+encodeURIComponent(goal.id),{method:"PATCH",body:JSON.stringify({
+          name:values.name,description:values.description || null,target_amount:Number(values.target_amount).toFixed(2),target_date:values.target_date || null
+        })});await loadFinanceData();}
+        catch(error){globalMessage(error.message,true);}
+      });
+      const remove=el("button","Delete goal","button button-quiet");remove.type="button";
+      remove.addEventListener("click",async()=>{
+        if(!await confirmInApp("Delete this goal? Its record will be deactivated. Existing contribution history will be retained."))return;
+        try{await api("/api/v1/goals/"+encodeURIComponent(goal.id),{method:"DELETE"});await loadFinanceData();}
+        catch(error){globalMessage(error.message,true);}
+      });
+      actions.append(edit,remove);card.append(actions);
       target.append(card);
     });
   }
@@ -454,7 +622,9 @@
       const details = el("div");
       details.append(el("h3", (item.source || "FNB_CSV").replaceAll("_", " ") + " import"));
       details.append(el("p", "Statement date: " + (item.statement_date || "Not supplied")));
-      top.append(details, el("span", item.status, "status-pill"));
+      const statusClass = item.status === "completed" ? "status-pill status-success" :
+        item.status === "partial" ? "status-pill status-warning" : "status-pill";
+      top.append(details, el("span", item.status, statusClass));
       card.append(top);
       const counts = el("p",
         "Processed: " + item.transaction_count +
@@ -463,6 +633,12 @@
         "muted small"
       );
       card.append(counts);
+      const total=Number(item.transaction_count || 0);
+      const finished=Number(item.imported_count || 0)+Number(item.duplicate_count || 0);
+      const percent=item.status==="completed" ? 100 : (total ? Math.min(99,finished/total*100) : 0);
+      const progress=el("div",undefined,"progress import-progress");
+      const fill=el("span");fill.style.width=percent+"%";progress.append(fill);card.append(progress);
+      card.append(el("p",Math.round(percent)+"% processed","muted small"));
       card.append(el(
         "p",
         "Started: " + (item.started_at || item.created_at || "Not available") +
@@ -531,44 +707,38 @@
       card.append(top);
       card.append(el("p", "Original " + money(debt.original_amount, debt.currency) + " · Monthly repayment " + money(debt.monthly_payment, debt.currency) + (debt.interest_rate === null ? "" : " · Interest " + debt.interest_rate + "%"), "muted small"));
       const actions = el("div", undefined, "record-actions");
-      const update = el("button", "Update balance", "button button-secondary");
-      update.type = "button";
-      update.addEventListener("click", async () => {
-        const value = window.prompt("Enter the latest outstanding balance", String(debt.current_balance));
-        if (value === null) return;
-        const amount = Number(value);
-        if (!Number.isFinite(amount) || amount < 0) {
-          globalMessage("Enter a valid outstanding balance.", true);
-          return;
-        }
-        try {
-          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({current_balance:amount.toFixed(2)})});
-          await loadFinanceData();
-        } catch (error) { globalMessage(error.message, true); }
-      });
-      const edit = el("button", "Edit details", "button button-secondary");
+      const edit = el("button", "Edit debt details", "button button-secondary");
       edit.type = "button";
       edit.addEventListener("click", async () => {
-        const creditor = window.prompt("Creditor / lender", debt.creditor);
-        if (creditor === null) return;
-        const name = window.prompt("Debt name", debt.debt_name);
-        if (name === null) return;
-        const payment = window.prompt("Monthly repayment", String(debt.monthly_payment));
-        if (payment === null) return;
-        const rate = window.prompt("Annual interest rate (%)", debt.interest_rate === null ? "" : String(debt.interest_rate));
-        if (rate === null) return;
-        const amount = Number(payment);
-        const interest = rate.trim() ? Number(rate) : null;
-        if (!creditor.trim() || !name.trim() || !Number.isFinite(amount) || amount < 0 || (interest !== null && (!Number.isFinite(interest) || interest < 0 || interest > 100))) {
-          globalMessage("Enter valid creditor, debt name, repayment and interest values.", true);
-          return;
-        }
+        const values = await showAppDialog({title:"Update debt",fields:[
+          {name:"creditor",label:"Creditor / lender",value:debt.creditor,required:true,maxLength:120},
+          {name:"debt_name",label:"Debt name",value:debt.debt_name,required:true,maxLength:120},
+          {name:"currency",label:"Currency code",value:debt.currency || "ZAR",required:true,pattern:"[A-Z]{3}",maxLength:3},
+          {name:"debt_type",label:"Debt type",type:"select",value:debt.debt_type,options:[
+            {value:"personal_loan",label:"Personal loan"},{value:"credit_card",label:"Credit card"},
+            {value:"vehicle_finance",label:"Vehicle finance"},{value:"home_loan",label:"Home loan"},
+            {value:"student_loan",label:"Student loan"},{value:"overdraft",label:"Overdraft"},{value:"other",label:"Other"}]},
+          {name:"original_amount",label:"Original amount",type:"number",value:debt.original_amount,required:true,min:0.01,step:0.01},
+          {name:"current_balance",label:"Outstanding balance",type:"number",value:debt.current_balance,required:true,min:0,step:0.01},
+          {name:"monthly_payment",label:"Monthly repayment",type:"number",value:debt.monthly_payment,min:0,step:0.01},
+          {name:"interest_rate",label:"Annual interest rate (%)",type:"number",value:debt.interest_rate ?? "",min:0,max:100,step:0.001},
+          {name:"opened_date",label:"Start date",type:"date",value:debt.opened_date || ""},
+          {name:"due_date",label:"Next due date",type:"date",value:debt.due_date || ""},
+          {name:"notes",label:"Notes",type:"textarea",value:debt.notes || "",maxLength:2000}
+        ]});
+        if(!values)return;
         try {
-          await api("/api/v1/debts/" + encodeURIComponent(debt.id), {method:"PATCH",body:JSON.stringify({creditor:creditor.trim(),debt_name:name.trim(),monthly_payment:amount.toFixed(2),interest_rate:interest===null?null:interest.toFixed(3)})});
+          await api("/api/v1/debts/"+encodeURIComponent(debt.id),{method:"PATCH",body:JSON.stringify({
+            ...values,original_amount:Number(values.original_amount).toFixed(2),
+            current_balance:Number(values.current_balance).toFixed(2),
+            monthly_payment:Number(values.monthly_payment || 0).toFixed(2),
+            interest_rate:values.interest_rate === "" ? null : Number(values.interest_rate).toFixed(3),
+            opened_date:values.opened_date || null,due_date:values.due_date || null,notes:values.notes || null
+          })});
           await loadFinanceData();
-        } catch (error) { globalMessage(error.message, true); }
+        } catch(error){globalMessage(error.message,true);}
       });
-      actions.append(update, edit);
+      actions.append(edit);
       card.append(actions);
       const history = debt.balance_history || [];
       card.append(el("p", history.length > 1 ? "Balance updates recorded: " + (history.length - 1) : "Initial balance recorded. Update it over time to track the trend.", "muted small"));
@@ -669,7 +839,13 @@
       "/api/v1/analytics/recurring-payments",
       "/imports",
     ];
-    const results = await Promise.allSettled(paths.map((path) => api(path)));
+    if (state.loadingFinanceData) return;
+    state.loadingFinanceData = true;
+    const results = [];
+    for (const path of paths) {
+      try { results.push({status:"fulfilled",value:await api(path)}); }
+      catch (reason) { results.push({status:"rejected",reason}); }
+    }
     const value = (index, fallback) =>
       results[index].status === "fulfilled" ? results[index].value : fallback;
     const failed = results
@@ -711,6 +887,7 @@
     } else {
       globalMessage("", false);
     }
+    state.loadingFinanceData = false;
   }
 
   async function loadTransactionsByFilter() {
@@ -734,6 +911,11 @@
     $("logout-button").classList.remove("hidden");
     $("user-email").textContent = state.user.email;
     await loadFinanceData();
+    if (!state.financeRefreshTimer) {
+      state.financeRefreshTimer = window.setInterval(() => {
+        if (state.user && !document.hidden) loadFinanceData();
+      }, 30000);
+    }
     switchView("dashboard-view");
   }
 
@@ -1003,16 +1185,22 @@
     form.append("consent", "true");
     form.append("file", state.selectedFile);
     message("confirm-import-message", "Importing transactions...");
+    const importProgressTimer = window.setInterval(async () => {
+      try { renderImportHistory(await api("/imports")); } catch (_) {}
+    }, 1000);
     try {
       const extension = state.selectedFile.name.toLowerCase().split(".").pop();
       const confirmPath = extension === "pdf" ? "/imports/fnb/pdf/confirm" : "/imports/fnb/csv/confirm";
       const result = await api(confirmPath, { method: "POST", body: form });
+      window.clearInterval(importProgressTimer);
       message("confirm-import-message",
         result.message + " Imported: " + result.imported_count + ". Duplicates: " + result.duplicate_count,
         "success");
       await loadFinanceData();
     } catch (error) {
+      window.clearInterval(importProgressTimer);
       message("confirm-import-message", error.message, "error");
+      try { renderImportHistory(await api("/imports")); } catch (_) {}
     }
   });
 
@@ -1023,7 +1211,8 @@
         method: "POST",
         body: JSON.stringify({
           name: $("budget-name").value.trim(),
-          category: $("budget-category").value,
+          categories: Array.from($("budget-category").selectedOptions).map((option)=>option.value),
+          category: Array.from($("budget-category").selectedOptions).map((option)=>option.value)[0],
           amount: Number($("budget-amount").value).toFixed(2),
           currency: "ZAR",
           period: $("budget-period").value,
@@ -1285,8 +1474,9 @@
       $("delete-confirmation").value.trim() !== "DELETE" ||
       !$("delete-password").value
     ) return;
-    const accepted = window.confirm(
-      "This permanently deletes your login and financial records. It cannot be undone. Continue?"
+    const accepted = await confirmInApp(
+      "This permanently deletes your login and financial records. It cannot be undone. Continue?",
+      "Delete permanently"
     );
     if (!accepted) return;
     message("delete-message", "Deleting account and financial records...");
