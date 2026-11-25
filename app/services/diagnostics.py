@@ -6,7 +6,6 @@ import logging
 import re
 import traceback
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from app.database.cloudant import get_cloudant_client, get_database_name
 
