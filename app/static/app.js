@@ -141,7 +141,7 @@
       statusList.append(item);
     });
     $("import-gate-message").classList.toggle("hidden", enabled);
-    $("confirm-import-button").disabled = !enabled || !state.selectedFile;
+    updateImportConfirmState();
     ["account-form","transaction-form","budget-form","goal-form","category-form","advisor-form"]
       .forEach((id) => {
         $(id).querySelectorAll("input,select,textarea,button").forEach((control) => {
@@ -190,6 +190,21 @@
       label: item.name,
     })), "Select expense category");
   }
+
+  function updateImportConfirmState() {
+    const accountSelected = Boolean($("import-account").value);
+    const consentGiven = $("import-consent").checked;
+    $("confirm-import-button").disabled = !(
+      state.financeEnabled &&
+      state.selectedFile &&
+      state.importPreview &&
+      accountSelected &&
+      consentGiven
+    );
+  }
+
+  $("import-account").addEventListener("change", updateImportConfirmState);
+  $("import-consent").addEventListener("change", updateImportConfirmState);
 
   function renderAccounts() {
     const target = $("account-list");
@@ -621,7 +636,7 @@
     if (preview.transaction_count > preview.preview_limit) {
       container.append(el("p", "Showing " + preview.preview_limit + " of " + preview.transaction_count + " transactions. The confirmation endpoint processes the full validated statement.", "muted small"));
     }
-    $("confirm-import-button").disabled = !state.financeEnabled;
+    updateImportConfirmState();
   }
 
   async function loadFinanceData() {
@@ -655,8 +670,7 @@
       renderDebts(value(4, []), value(5, null));
       renderSummary(value(6, null), value(7, []));
       renderImportHistory(value(8, []));
-      $("confirm-import-button").disabled =
-        !state.financeEnabled || !state.selectedFile || !state.importPreview;
+      updateImportConfirmState();
       if (failed.length) {
         const names = [
           "categories", "transactions", "budget progress", "goals", "debts",
@@ -683,7 +697,7 @@
         renderGoals([]);
         renderDebts([], null);
         renderSummary(null, []);
-        $("confirm-import-button").disabled = true;
+        updateImportConfirmState();
         return;
       }
       globalMessage(error.message, true);
