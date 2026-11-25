@@ -1,5 +1,6 @@
 """FastAPI application factory and API endpoints."""
 
+import logging
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,6 +20,7 @@ from app.services.finance import FinanceAuditError
 # through environment variables and does not need a .env file in the image.
 load_dotenv()
 STATIC_DIR = Path(__file__).parent / "static"
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -34,6 +36,20 @@ def create_app() -> FastAPI:
     application.include_router(finance_router)
     application.include_router(advisor_router)
     application.include_router(privacy_router)
+
+    @application.exception_handler(Exception)
+    async def unhandled_exception(request, exc):
+        # Preserve the full server-side traceback for diagnosis while keeping
+        # internal details and financial data out of the HTTP response.
+        logger.exception(
+            "Unhandled request failure method=%s path=%s",
+            request.method,
+            request.url.path,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error. Check application logs."},
+        )
 
     @application.exception_handler(FinanceAuditError)
     async def required_audit_failed(_request, _exc):

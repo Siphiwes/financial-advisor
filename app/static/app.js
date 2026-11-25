@@ -142,7 +142,7 @@
     });
     $("import-gate-message").classList.toggle("hidden", enabled);
     updateImportConfirmState();
-    ["account-form","transaction-form","budget-form","goal-form","category-form","advisor-form"]
+    ["account-form","transaction-form","budget-form","goal-form","debt-form","category-form","advisor-form"]
       .forEach((id) => {
         $(id).querySelectorAll("input,select,textarea,button").forEach((control) => {
           control.disabled = !enabled;
@@ -640,67 +640,62 @@
   }
 
   async function loadFinanceData() {
-    try {
-      state.accounts = await api("/api/v1/accounts");
-      setGate(true);
-      const requests = [
-        api("/api/v1/categories"),
-        api("/api/v1/transactions?limit=100"),
-        api("/api/v1/budgets/progress"),
-        api("/api/v1/goals"),
-        api("/api/v1/debts"),
-        api("/api/v1/analytics/debts"),
-        api("/api/v1/analytics/summary"),
-        api("/api/v1/analytics/recurring-payments"),
-        api("/imports"),
+    // Treat every module, including Accounts, as an independent request. A
+    // failed account-list request must not prevent the rest of the workspace
+    // from loading or make every navigation view appear broken.
+    const paths = [
+      "/api/v1/accounts",
+      "/api/v1/categories",
+      "/api/v1/transactions?limit=100",
+      "/api/v1/budgets/progress",
+      "/api/v1/goals",
+      "/api/v1/debts",
+      "/api/v1/analytics/debts",
+      "/api/v1/analytics/summary",
+      "/api/v1/analytics/recurring-payments",
+      "/imports",
+    ];
+    const results = await Promise.allSettled(paths.map((path) => api(path)));
+    const value = (index, fallback) =>
+      results[index].status === "fulfilled" ? results[index].value : fallback;
+    const failed = results
+      .map((result, index) => result.status === "rejected" ? index : -1)
+      .filter((index) => index >= 0);
+    const gateDisabled = results.some((result) =>
+      result.status === "rejected" &&
+      result.reason instanceof ApiError &&
+      result.reason.status === 503 &&
+      /financial data storage is disabled/i.test(result.reason.message)
+    );
+
+    setGate(!gateDisabled);
+    state.accounts = value(0, []);
+    state.categories = value(1, []);
+    refreshSelects();
+    renderAccounts();
+    renderCategories();
+    renderTransactions((value(2, {items: []}).items) || []);
+    renderBudgets(value(3, []));
+    renderGoals(value(4, []));
+    renderDebts(value(5, []), value(6, null));
+    renderSummary(value(7, null), value(8, []));
+    renderImportHistory(value(9, []));
+    updateImportConfirmState();
+
+    if (failed.length) {
+      const names = [
+        "accounts", "categories", "transactions", "budget progress", "goals",
+        "debts", "debt analytics", "financial analytics", "recurring payments",
+        "import history",
       ];
-      const results = await Promise.allSettled(requests);
-      const value = (index, fallback) =>
-        results[index].status === "fulfilled" ? results[index].value : fallback;
-      const failed = results
-        .map((result, index) => result.status === "rejected" ? index : -1)
-        .filter((index) => index >= 0);
-      state.categories = value(0, []);
-      refreshSelects();
-      renderAccounts();
-      renderCategories();
-      renderTransactions((value(1, {items: []}).items) || []);
-      renderBudgets(value(2, []));
-      renderGoals(value(3, []));
-      renderDebts(value(4, []), value(5, null));
-      renderSummary(value(6, null), value(7, []));
-      renderImportHistory(value(8, []));
-      updateImportConfirmState();
-      if (failed.length) {
-        const names = [
-          "categories", "transactions", "budget progress", "goals", "debts",
-          "debt analytics", "financial analytics", "recurring payments", "import history",
-        ];
-        globalMessage(
-          "Some sections could not be refreshed: " +
-          failed.map((index) => names[index]).join(", ") +
-          ". Other available sections have loaded. Use the section's Refresh button to retry.",
-          true
-        );
-      } else {
-        globalMessage("", false);
-      }
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 503) {
-        setGate(false);
-        state.accounts = [];
-        state.categories = [];
-        renderAccounts();
-        renderCategories();
-        renderTransactions([]);
-        renderBudgets([]);
-        renderGoals([]);
-        renderDebts([], null);
-        renderSummary(null, []);
-        updateImportConfirmState();
-        return;
-      }
-      globalMessage(error.message, true);
+      globalMessage(
+        "Some sections could not be refreshed: " +
+        failed.map((index) => names[index]).join(", ") +
+        ". Other available sections remain usable. Retry the affected section.",
+        true
+      );
+    } else {
+      globalMessage("", false);
     }
   }
 
