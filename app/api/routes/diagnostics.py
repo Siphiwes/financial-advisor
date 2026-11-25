@@ -4,9 +4,12 @@ import hmac
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from app.core.config import get_setting
+from app.api.dependencies import get_current_user
+from app.schemas.auth import AuthenticatedUser
+from app.services.diagnostics import list_diagnostic_events
 from app.database.cloudant import (
     CloudantConfigurationError,
     get_cloudant_client,
@@ -103,3 +106,23 @@ def cloudant_round_trip() -> dict:
         "checks": checks,
         "note": "The temporary diagnostic document was deleted.",
     }
+
+
+
+@router.get(
+    "/api/v1/diagnostics",
+    summary="List recent application errors for the authenticated user",
+)
+def read_application_diagnostics(
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    limit: int = Query(default=50, ge=1, le=100),
+) -> list[dict]:
+    """Return recent application diagnostic records without financial payloads."""
+    try:
+        return list_diagnostic_events(user.id, limit=limit)
+    except Exception as exc:
+        logger.error("Application diagnostics retrieval failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=503,
+            detail="System diagnostics are temporarily unavailable because the diagnostic store could not be reached.",
+        ) from exc
