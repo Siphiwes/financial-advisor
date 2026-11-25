@@ -58,7 +58,7 @@ def _is_http_status(error: Exception, expected_status: int) -> bool:
 def _post_all_docs_with_backoff(client, **kwargs):
     """Retry Cloudant rate-limit responses with bounded exponential backoff."""
     delays = (0.25, 0.5, 1.0, 2.0)
-    for attempt, delay in enumerate((*delays, None)):
+    for delay in (*delays, None):
         try:
             return client.post_all_docs(**kwargs).get_result()
         except Exception as exc:
