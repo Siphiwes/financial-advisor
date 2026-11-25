@@ -84,7 +84,7 @@
     }
     if (!response.ok) {
       const detail = payload && typeof payload === "object" ? payload.detail : payload;
-      if (response.status === 401 && state.token) signOut();
+      if (response.status === 401) signOut();
       throw new ApiError(response.status, typeof detail === "string" ? detail : "The API request failed.");
     }
     return payload;
@@ -95,6 +95,7 @@
   }
 
   function signOut() {
+    fetch("/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
     state.token = null;
     state.user = null;
     state.accounts = [];
@@ -763,13 +764,15 @@
           password: $("password").value,
         }),
       });
-      state.token = token.access_token;
+      // The access token is held in an HttpOnly cookie, not JavaScript memory.
+      state.token = null;
       state.user = await api("/auth/me");
       $("password").value = "";
       message("login-message", "", "");
       await beginWorkspace();
     } catch (error) {
       state.token = null;
+      fetch("/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
       message("login-message", error.message, "error");
     }
   });
@@ -1192,6 +1195,18 @@
   });
 
   processAccountLink();
+
+  async function restoreSession() {
+    try {
+      state.user = await api("/auth/me");
+      await beginWorkspace();
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) {
+        globalMessage(error.message, true);
+      }
+    }
+  }
+  restoreSession();
 
   fetch("/health", { credentials: "same-origin" })
     .then((response) => {
