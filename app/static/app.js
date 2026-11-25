@@ -713,6 +713,7 @@
         const values = await showAppDialog({title:"Update debt",fields:[
           {name:"creditor",label:"Creditor / lender",value:debt.creditor,required:true,maxLength:120},
           {name:"debt_name",label:"Debt name",value:debt.debt_name,required:true,maxLength:120},
+          {name:"currency",label:"Currency code",value:debt.currency || "ZAR",required:true,pattern:"[A-Z]{3}",maxLength:3},
           {name:"debt_type",label:"Debt type",type:"select",value:debt.debt_type,options:[
             {value:"personal_loan",label:"Personal loan"},{value:"credit_card",label:"Credit card"},
             {value:"vehicle_finance",label:"Vehicle finance"},{value:"home_loan",label:"Home loan"},
