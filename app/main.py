@@ -6,9 +6,9 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes.advisor import router as advisor_router
 from app.api.routes.auth import router as auth_router
