@@ -114,7 +114,9 @@ def get_current_user(
     request: Request,
 ) -> AuthenticatedUser:
     """Validate bearer or HttpOnly-cookie authentication."""
-    return _load_authenticated_user(_request_token(request, credentials))
+    user = _load_authenticated_user(_request_token(request, credentials))
+    request.state.user_id = user.id
+    return user
 
 
 def get_user_for_deletion(

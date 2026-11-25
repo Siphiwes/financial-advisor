@@ -2,11 +2,13 @@
 
 import logging
 from pathlib import Path
+from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes.advisor import router as advisor_router
 from app.api.routes.auth import router as auth_router
@@ -14,6 +16,7 @@ from app.api.routes.diagnostics import router as diagnostics_router
 from app.api.routes.finance import router as finance_router
 from app.api.routes.imports import router as imports_router
 from app.api.routes.privacy import router as privacy_router
+from app.services.diagnostics import write_diagnostic_event
 from app.services.finance import FinanceAuditError
 
 # Loads a local .env file when present. Code Engine supplies deployed values
@@ -37,18 +40,93 @@ def create_app() -> FastAPI:
     application.include_router(advisor_router)
     application.include_router(privacy_router)
 
+    @application.middleware("http")
+    async def attach_request_id(request, call_next):
+        request_id = uuid4().hex
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+    @application.exception_handler(StarletteHTTPException)
+    async def server_http_exception(request, exc):
+        if exc.status_code < 500:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers,
+            )
+        diagnostic_id = getattr(request.state, "request_id", uuid4().hex)
+        diagnostic_exception = RuntimeError(str(exc.detail))
+        logger.error(
+            "Server HTTP failure diagnostic_id=%s method=%s path=%s status=%s",
+            diagnostic_id,
+            request.method,
+            request.url.path,
+            exc.status_code,
+        )
+        write_diagnostic_event(
+            diagnostic_id=diagnostic_id,
+            user_id=getattr(request.state, "user_id", None),
+            method=request.method,
+            path=request.url.path,
+            status_code=exc.status_code,
+            exception=diagnostic_exception,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            headers={"X-Request-ID": diagnostic_id},
+            content={
+                "detail": (
+                    f"Problem found on Server connection. Issue caused by API "
+                    f"{request.method} {request.url.path}. {exc.detail}"
+                ),
+                "error": {
+                    "category": "server_error",
+                    "module": "Server connection",
+                    "endpoint": request.url.path,
+                    "method": request.method,
+                    "diagnostic_id": diagnostic_id,
+                    "status_code": exc.status_code,
+                },
+            },
+        )
+
     @application.exception_handler(Exception)
     async def unhandled_exception(request, exc):
-        # Preserve the full server-side traceback for diagnosis while keeping
-        # internal details and financial data out of the HTTP response.
+        diagnostic_id = getattr(request.state, "request_id", uuid4().hex)
         logger.exception(
-            "Unhandled request failure method=%s path=%s",
+            "Unhandled request failure diagnostic_id=%s method=%s path=%s",
+            diagnostic_id,
             request.method,
             request.url.path,
         )
+        write_diagnostic_event(
+            diagnostic_id=diagnostic_id,
+            user_id=getattr(request.state, "user_id", None),
+            method=request.method,
+            path=request.url.path,
+            status_code=500,
+            exception=exc,
+        )
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error. Check application logs."},
+            headers={"X-Request-ID": diagnostic_id},
+            content={
+                "detail": (
+                    f"Problem found on Server connection. Issue caused by API "
+                    f"{request.method} {request.url.path}. "
+                    "The server could not complete this operation."
+                ),
+                "error": {
+                    "category": "server_error",
+                    "module": "Server connection",
+                    "endpoint": request.url.path,
+                    "method": request.method,
+                    "diagnostic_id": diagnostic_id,
+                    "status_code": 500,
+                },
+            },
         )
 
     @application.exception_handler(FinanceAuditError)

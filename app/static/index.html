@@ -285,6 +285,13 @@
           <div id="audit-list" class="empty-state">No recent activity is available.</div>
         </article>
         <article class="panel privacy-card">
+          <div class="panel-heading">
+            <div><h3>System diagnostics</h3><p class="muted">Recent application errors and technical references. Sensitive request data is not stored.</p></div>
+            <button id="refresh-diagnostics-button" class="button button-secondary" type="button">Refresh</button>
+          </div>
+          <div id="diagnostics-list" class="record-list"><p class="empty-state">No diagnostic records loaded.</p></div>
+        </article>
+        <article class="panel privacy-card">
           <h3>Change password</h3>
           <form id="password-change-form" class="form-grid">
             <div><label for="password-current">Current password</label><input id="password-current" type="password" autocomplete="current-password" required></div>
