@@ -209,7 +209,7 @@
         <form id="budget-form" class="panel form-grid">
           <h3 class="span-all">Create a budget</h3>
           <div><label for="budget-name">Name</label><input id="budget-name" required maxlength="100"></div>
-          <div><label for="budget-category">Category</label><select id="budget-category" required></select></div>
+          <div><label for="budget-category">Category</label><select id="budget-category" multiple size="6" required aria-describedby="budget-category-help"></select><small id="budget-category-help" class="muted">Select one or more income and expense categories. Hold Ctrl (Windows) to select multiple.</small></div>
           <div><label for="budget-amount">Limit</label><input id="budget-amount" type="number" min="0.01" step="0.01" required></div>
           <div><label for="budget-period">Period</label><select id="budget-period"><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></div>
           <div><label for="budget-start">Start date</label><input id="budget-start" type="date" required></div>
@@ -322,5 +322,12 @@
       <footer class="footer">Financial calculations are based on recorded bank data. AI explanations are generated from aggregate figures and aren't a substitute for professional financial advice.</footer>
     </section>
   </main>
+  <dialog id="app-dialog" class="app-dialog" aria-labelledby="app-dialog-title">
+    <form id="app-dialog-form" method="dialog">
+      <div class="app-dialog-heading"><h2 id="app-dialog-title">Update record</h2><button type="button" id="app-dialog-close" class="button button-quiet" aria-label="Close dialog">Close</button></div>
+      <div id="app-dialog-content" class="app-dialog-content"></div>
+      <div class="app-dialog-actions"><button type="button" id="app-dialog-cancel" class="button button-secondary">Cancel</button><button type="submit" id="app-dialog-submit" class="button button-primary">Save changes</button></div>
+    </form>
+  </dialog>
 </body>
 </html>
