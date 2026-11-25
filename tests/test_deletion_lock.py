@@ -5,7 +5,6 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
 
 from app.api import dependencies
 
@@ -35,14 +34,12 @@ def test_deletion_lock_blocks_normal_requests_and_allows_retry(monkeypatch) -> N
         "get_user_by_document_id",
         lambda client, database, document_id: user_document,
     )
-    credentials = HTTPAuthorizationCredentials(
-        scheme="Bearer",
-        credentials="access-token",
-    )
-
     with pytest.raises(HTTPException) as error:
-        dependencies.get_current_user(credentials)
+        dependencies._load_authenticated_user("access-token")
 
     assert error.value.status_code == 423
-    deletion_user = dependencies.get_user_for_deletion(credentials)
+    deletion_user = dependencies._load_authenticated_user(
+        "access-token",
+        allow_deletion_in_progress=True,
+    )
     assert deletion_user.id == user_id
