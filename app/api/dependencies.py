@@ -2,8 +2,9 @@
 
 import logging
 from typing import Annotated
+from urllib.parse import urlsplit
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import get_setting
@@ -16,22 +17,25 @@ logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+ACCESS_TOKEN_COOKIE = "finance_access_token"
+
+
 def _load_authenticated_user(
-    credentials: HTTPAuthorizationCredentials | None,
+    token: str | None,
     *,
     allow_deletion_in_progress: bool = False,
 ) -> AuthenticatedUser:
-    """Validate a bearer token and resolve its active Cloudant user document."""
+    """Validate a signed session token and resolve its active Cloudant user document."""
     unauthorized = HTTPException(
         status_code=401,
         detail="Authentication is required.",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if credentials is None or credentials.scheme.lower() != "bearer":
+    if not token:
         raise unauthorized
 
     try:
-        claims = decode_access_token(credentials.credentials)
+        claims = decode_access_token(token)
     except SecurityConfigurationError as exc:
         raise HTTPException(
             status_code=503,
@@ -76,24 +80,56 @@ def _load_authenticated_user(
     )
 
 
+def _request_token(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None,
+) -> str | None:
+    """Prefer bearer credentials, otherwise use the HttpOnly browser cookie."""
+    if credentials is not None and credentials.scheme.lower() == "bearer":
+        return credentials.credentials
+
+    cookie_token = request.cookies.get(ACCESS_TOKEN_COOKIE)
+    if not cookie_token:
+        return None
+
+    # SameSite=Strict is the primary CSRF control. Validate Origin as a second
+    # control for state-changing requests authenticated by the browser cookie.
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        origin = urlsplit(request.headers.get("origin") or "")
+        if (
+            origin.scheme != "https"
+            or origin.netloc != request.url.netloc
+            or origin.path not in {"", "/"}
+            or origin.query
+            or origin.fragment
+        ):
+            raise HTTPException(status_code=403, detail="The request origin is not allowed.")
+    return cookie_token
+
+
 def get_current_user(
+    request: Request,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
         Depends(bearer_scheme),
     ],
 ) -> AuthenticatedUser:
-    """Validate the bearer token and reject accounts currently being deleted."""
-    return _load_authenticated_user(credentials)
+    """Validate bearer or HttpOnly-cookie authentication."""
+    return _load_authenticated_user(_request_token(request, credentials))
 
 
 def get_user_for_deletion(
+    request: Request,
     credentials: Annotated[
         HTTPAuthorizationCredentials | None,
         Depends(bearer_scheme),
     ],
 ) -> AuthenticatedUser:
     """Allow only the deletion workflow to resume an account already being deleted."""
-    return _load_authenticated_user(credentials, allow_deletion_in_progress=True)
+    return _load_authenticated_user(
+        _request_token(request, credentials),
+        allow_deletion_in_progress=True,
+    )
 
 
 def require_financial_data_enabled(
