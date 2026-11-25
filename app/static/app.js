@@ -956,7 +956,16 @@
     event.preventDefault(); loadTransactionsByFilter();
   });
   $("refresh-transactions").addEventListener("click", () => runRefresh(
-    "refresh-transactions", "Transactions", loadTransactionsByFilter
+    "refresh-transactions", "Transactions", async () => {
+      const params = new URLSearchParams();
+      [["account_id","transaction-account-filter"],["from_date","transaction-from"],
+       ["to_date","transaction-to"],["search","transaction-search"]].forEach((item) => {
+        const value = $(item[1]).value.trim();
+        if (value) params.set(item[0], value);
+      });
+      const data = await api("/api/v1/transactions?" + params.toString());
+      renderTransactions(data.items || []);
+    }
   ));
 
   $("import-form").addEventListener("submit", async (event) => {
@@ -1170,7 +1179,7 @@
         target.append(card);
       });
     } catch (error) {
-      target.append(el("p", error.message, "form-message error"));
+      throw error;
     }
   }
 
@@ -1196,7 +1205,7 @@
         target.append(row);
       });
     } catch (error) {
-      target.append(el("p", error.message, "empty-state"));
+      throw error;
     }
   }
 
