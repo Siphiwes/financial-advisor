@@ -122,7 +122,7 @@ def get_user_for_deletion(
         HTTPAuthorizationCredentials | None,
         Depends(bearer_scheme),
     ],
-    request: Request | None = None,
+    request: Request,
 ) -> AuthenticatedUser:
     """Allow only the deletion workflow to resume an account already being deleted."""
     return _load_authenticated_user(
