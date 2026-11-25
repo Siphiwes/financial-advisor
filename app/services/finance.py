@@ -1092,6 +1092,9 @@ def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) 
     today = today or date.today()
     budgets = list_budgets(user)
     transactions, _ = _list_all_records(user.id, "transactions")
+    category_kinds = {
+        item["name"].casefold(): item["kind"] for item in list_categories(user)
+    }
     progress = []
 
     for budget in budgets:
@@ -1110,10 +1113,8 @@ def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) 
                 if transaction.get("currency") != budget["currency"]:
                     continue
                 amount = Decimal(str(transaction["amount"]))
-                category_kind = next(
-                    (entry["kind"] for entry in list_categories(user)
-                     if entry["name"].casefold() == str(transaction.get("category") or "").casefold()),
-                    "expense",
+                category_kind = category_kinds.get(
+                    str(transaction.get("category") or "").casefold(), "expense"
                 )
                 if category_kind == "income" and amount > 0:
                     spent += amount
