@@ -15,9 +15,10 @@
   const $ = (id) => document.getElementById(id);
 
   class ApiError extends Error {
-    constructor(status, detail) {
+    constructor(status, detail, diagnostic) {
       super(detail || "The request could not be completed.");
       this.status = status;
+      this.diagnostic = diagnostic || null;
     }
   }
 
@@ -71,7 +72,9 @@
         credentials: "same-origin",
       });
     } catch {
-      throw new ApiError(0, "The API could not be reached. Check the connection and try again.");
+      throw new ApiError(0, "Problem found on Server connection. The API could not be reached. Check the network connection and try again.", {
+        category: "network_error", module: "Server connection", endpoint: path, method: settings.method || "GET"
+      });
     }
     const contentType = response.headers.get("content-type") || "";
     let payload = null;
@@ -84,8 +87,19 @@
     }
     if (!response.ok) {
       const detail = payload && typeof payload === "object" ? payload.detail : payload;
+      const diagnostic = payload && typeof payload === "object" ? payload.error : null;
       if (response.status === 401) signOut();
-      throw new ApiError(response.status, typeof detail === "string" ? detail : "The API request failed.");
+      let messageText = typeof detail === "string" ? detail : "The API request failed.";
+      if (diagnostic && diagnostic.diagnostic_id) {
+        messageText = "Problem found on " + (diagnostic.module || "Server connection") +
+          ". Issue caused by API " + (diagnostic.method || settings.method || "GET") +
+          " " + (diagnostic.endpoint || path) + ". Reference: " + diagnostic.diagnostic_id +
+          " (HTTP " + response.status + ").";
+      } else if (response.status >= 500) {
+        messageText = "Problem found on Server connection. Issue caused by API " +
+          (settings.method || "GET") + " " + path + ". " + messageText;
+      }
+      throw new ApiError(response.status, messageText, diagnostic);
     }
     return payload;
   }
@@ -227,7 +241,7 @@
         if (!window.confirm("Deactivate this linked account? Existing transactions will remain.")) return;
         try {
           await api("/api/v1/accounts/" + encodeURIComponent(account.id), { method: "DELETE" });
-          await loadData();
+          await loadFinanceData();
         } catch (error) {
           globalMessage(error.message, true);
         }
@@ -305,7 +319,7 @@
               method: "PATCH",
               body: JSON.stringify({ category: result.suggested_category }),
             });
-            await loadData();
+            await loadFinanceData();
           }
         } catch (error) {
           globalMessage(error.message, true);
@@ -317,7 +331,7 @@
         if (!window.confirm("Remove this transaction from your active history?")) return;
         try {
           await api("/api/v1/transactions/" + encodeURIComponent(item.id), { method: "DELETE" });
-          await loadData();
+          await loadFinanceData();
         } catch (error) {
           globalMessage(error.message, true);
         }
@@ -345,7 +359,7 @@
         method: "PATCH",
         body: JSON.stringify({ description, amount: amount.toFixed(2) }),
       });
-      await loadData();
+      await loadFinanceData();
     } catch (error) {
       globalMessage(error.message, true);
     }
@@ -417,7 +431,7 @@
               direction: direction.value,
             }),
           });
-          await loadData();
+          await loadFinanceData();
         } catch (error) {
           globalMessage(error.message, true);
         }
@@ -889,8 +903,34 @@
       message("account-message", error.message, "error");
     }
   });
-  $("refresh-accounts").addEventListener("click", loadFinanceData);
-  $("refresh-import-history").addEventListener("click", loadFinanceData);
+  async function runRefresh(buttonId, label, operation) {
+    const button = $(buttonId);
+    if (button.disabled) return;
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Refreshing...";
+    try {
+      await operation();
+      globalMessage(label + " refreshed.", false);
+    } catch (error) {
+      globalMessage(error.message, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
+  $("refresh-accounts").addEventListener("click", () => runRefresh(
+    "refresh-accounts", "Accounts", async () => {
+      state.accounts = await api("/api/v1/accounts");
+      refreshSelects();
+      renderAccounts();
+      updateImportConfirmState();
+    }
+  ));
+  $("refresh-import-history").addEventListener("click", () => runRefresh(
+    "refresh-import-history", "Import history", async () => renderImportHistory(await api("/imports"))
+  ));
 
   $("transaction-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -915,7 +955,9 @@
   $("transaction-filter").addEventListener("submit", (event) => {
     event.preventDefault(); loadTransactionsByFilter();
   });
-  $("refresh-transactions").addEventListener("click", loadFinanceData);
+  $("refresh-transactions").addEventListener("click", () => runRefresh(
+    "refresh-transactions", "Transactions", loadTransactionsByFilter
+  ));
 
   $("import-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -986,7 +1028,9 @@
       message("budget-message", error.message, "error");
     }
   });
-  $("refresh-budgets").addEventListener("click", loadFinanceData);
+  $("refresh-budgets").addEventListener("click", () => runRefresh(
+    "refresh-budgets", "Budgets", async () => renderBudgets(await api("/api/v1/budgets/progress"))
+  ));
 
   $("goal-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1007,7 +1051,9 @@
       message("goal-message", error.message, "error");
     }
   });
-  $("refresh-goals").addEventListener("click", loadFinanceData);
+  $("refresh-goals").addEventListener("click", () => runRefresh(
+    "refresh-goals", "Goals", async () => renderGoals(await api("/api/v1/goals"))
+  ));
 
   $("debt-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1036,7 +1082,14 @@
       message("debt-message", error.message, "error");
     }
   });
-  $("refresh-debts").addEventListener("click", loadFinanceData);
+  $("refresh-debts").addEventListener("click", () => runRefresh(
+    "refresh-debts", "Debts", async () => {
+      const [debts, analytics] = await Promise.all([
+        api("/api/v1/debts"), api("/api/v1/analytics/debts")
+      ]);
+      renderDebts(debts, analytics);
+    }
+  ));
 
 
   $("category-form").addEventListener("submit", async (event) => {
@@ -1056,7 +1109,13 @@
       message("category-message", error.message, "error");
     }
   });
-  $("refresh-categories").addEventListener("click", loadFinanceData);
+  $("refresh-categories").addEventListener("click", () => runRefresh(
+    "refresh-categories", "Categories", async () => {
+      state.categories = await api("/api/v1/categories");
+      refreshSelects();
+      renderCategories();
+    }
+  ));
 
   $("advisor-consent").addEventListener("change", () => {
     $("advisor-submit").disabled = !state.financeEnabled || !$("advisor-consent").checked;
