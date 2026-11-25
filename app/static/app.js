@@ -1140,6 +1140,44 @@
     }
   });
 
+  async function loadDiagnostics() {
+    const target = $("diagnostics-list");
+    target.replaceChildren();
+    try {
+      const records = await api("/api/v1/diagnostics?limit=50");
+      if (!records.length) {
+        target.append(el("p", "No application errors have been recorded.", "empty-state"));
+        return;
+      }
+      records.forEach((record) => {
+        const card = el("article", undefined, "record-card");
+        const top = el("div", undefined, "record-card-top");
+        const details = el("div");
+        details.append(el("h3", record.exception_type || "Application error"));
+        details.append(el("p",
+          (record.occurred_at || "") + " · HTTP " + record.status_code +
+          " · " + record.method + " " + record.path
+        ));
+        top.append(details, el("span", record.diagnostic_id || "No reference", "status-pill status-error"));
+        card.append(top);
+        card.append(el("p", record.message || "No additional error message.", "muted small"));
+        const disclosure = el("details");
+        const summary = el("summary", "Technical details");
+        const stack = el("pre", record.stack_trace || "No stack trace recorded.");
+        stack.className = "diagnostic-stack";
+        disclosure.append(summary, stack);
+        card.append(disclosure);
+        target.append(card);
+      });
+    } catch (error) {
+      target.append(el("p", error.message, "form-message error"));
+    }
+  }
+
+  $("refresh-diagnostics-button").addEventListener("click", () => runRefresh(
+    "refresh-diagnostics-button", "System diagnostics", loadDiagnostics
+  ));
+
   async function loadAuditHistory() {
     const target = $("audit-list");
     target.replaceChildren();
@@ -1162,7 +1200,9 @@
     }
   }
 
-  $("refresh-audit-button").addEventListener("click", loadAuditHistory);
+  $("refresh-audit-button").addEventListener("click", () => runRefresh(
+    "refresh-audit-button", "Account activity", loadAuditHistory
+  ));
 
   $("password-change-form").addEventListener("submit", async (event) => {
     event.preventDefault();
