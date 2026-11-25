@@ -1,6 +1,7 @@
 """Cloudant helpers that namespace every finance record by its owner."""
 
 import re
+import time
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -46,10 +47,24 @@ def _document_id(user_id: str, collection: str, record_id: str) -> str:
 
 def _is_http_status(error: Exception, expected_status: int) -> bool:
     """Recognize a Cloudant HTTP status value."""
-    return any(
+    direct = any(
         getattr(error, attribute, None) == expected_status
         for attribute in ("code", "status_code")
     )
+    response = getattr(error, "http_response", None)
+    return direct or getattr(response, "status_code", None) == expected_status
+
+
+def _post_all_docs_with_backoff(client, **kwargs):
+    """Retry Cloudant rate-limit responses with bounded exponential backoff."""
+    delays = (0.25, 0.5, 1.0, 2.0)
+    for attempt, delay in enumerate((*delays, None)):
+        try:
+            return client.post_all_docs(**kwargs).get_result()
+        except Exception as exc:
+            if not _is_http_status(exc, 429) or delay is None:
+                raise
+            time.sleep(delay)
 
 
 def _is_not_found(error: Exception) -> bool:
@@ -130,7 +145,8 @@ def list_user_scoped_documents(
         raise ValueError("The requested offset is outside the supported range.")
 
     prefix = _document_prefix(user_id, collection)
-    result = client.post_all_docs(
+    result = _post_all_docs_with_backoff(
+        client,
         db=database,
         include_docs=True,
         start_key=prefix,
@@ -138,7 +154,7 @@ def list_user_scoped_documents(
         inclusive_end=False,
         limit=limit + 1,
         skip=offset,
-    ).get_result()
+    )
 
     documents = []
     for row in result.get("rows", []):
