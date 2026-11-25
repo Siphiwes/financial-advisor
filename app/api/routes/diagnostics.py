@@ -6,16 +6,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
-from app.core.config import get_setting
 from app.api.dependencies import get_current_user
-from app.schemas.auth import AuthenticatedUser
-from app.services.diagnostics import list_diagnostic_events
+from app.core.config import get_setting
 from app.database.cloudant import (
     CloudantConfigurationError,
     get_cloudant_client,
     get_database_name,
     verify_document_round_trip,
 )
+from app.schemas.auth import AuthenticatedUser
+from app.services.diagnostics import list_diagnostic_events
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["diagnostics"])
