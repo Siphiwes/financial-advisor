@@ -43,9 +43,6 @@ def test_cookie_authenticated_state_change_requires_same_origin() -> None:
     secure_client.cookies.set(
         "finance_access_token",
         "invalid-session-token",
-        secure=True,
-        httponly=True,
-        samesite="strict",
     )
 
     response = secure_client.post(
