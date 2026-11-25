@@ -23,7 +23,7 @@ class FinancialAccountUpdate(BaseModel):
 
     display_name: str | None = Field(default=None, min_length=1, max_length=80)
     account_type: AccountType | None = None
-    account_last_four: str | None = Field(default=None, pattern=r"^\\d{4}$")
+    account_last_four: str | None = Field(default=None, pattern=r"^\d{4}$")
     is_active: bool | None = None
 
 class FinancialAccountResponse(BaseModel):
