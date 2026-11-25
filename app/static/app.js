@@ -627,7 +627,7 @@
     try {
       state.accounts = await api("/api/v1/accounts");
       setGate(true);
-      const results = await Promise.all([
+      const requests = [
         api("/api/v1/categories"),
         api("/api/v1/transactions?limit=100"),
         api("/api/v1/budgets/progress"),
@@ -637,17 +637,39 @@
         api("/api/v1/analytics/summary"),
         api("/api/v1/analytics/recurring-payments"),
         api("/imports"),
-      ]);
-      state.categories = results[0];
+      ];
+      const results = await Promise.allSettled(requests);
+      const value = (index, fallback) =>
+        results[index].status === "fulfilled" ? results[index].value : fallback;
+      const failed = results
+        .map((result, index) => result.status === "rejected" ? index : -1)
+        .filter((index) => index >= 0);
+      state.categories = value(0, []);
+      refreshSelects();
       renderAccounts();
       renderCategories();
-      renderTransactions(results[1].items || []);
-      renderBudgets(results[2]);
-      renderGoals(results[3]);
-      renderDebts(results[4], results[5]);
-      renderSummary(results[6], results[7]);
-      renderImportHistory(results[8]);
-      $("confirm-import-button").disabled = !state.importPreview;
+      renderTransactions((value(1, {items: []}).items) || []);
+      renderBudgets(value(2, []));
+      renderGoals(value(3, []));
+      renderDebts(value(4, []), value(5, null));
+      renderSummary(value(6, null), value(7, []));
+      renderImportHistory(value(8, []));
+      $("confirm-import-button").disabled =
+        !state.financeEnabled || !state.selectedFile || !state.importPreview;
+      if (failed.length) {
+        const names = [
+          "categories", "transactions", "budget progress", "goals", "debts",
+          "debt analytics", "financial analytics", "recurring payments", "import history",
+        ];
+        globalMessage(
+          "Some sections could not be refreshed: " +
+          failed.map((index) => names[index]).join(", ") +
+          ". Other available sections have loaded. Use the section's Refresh button to retry.",
+          true
+        );
+      } else {
+        globalMessage("", false);
+      }
     } catch (error) {
       if (error instanceof ApiError && error.status === 503) {
         setGate(false);
@@ -660,6 +682,7 @@
         renderGoals([]);
         renderDebts([], null);
         renderSummary(null, []);
+        $("confirm-import-button").disabled = true;
         return;
       }
       globalMessage(error.message, true);
