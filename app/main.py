@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -46,6 +47,50 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         return response
+
+    @application.exception_handler(StarletteHTTPException)
+    async def server_http_exception(request, exc):
+        if exc.status_code < 500:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers,
+            )
+        diagnostic_id = getattr(request.state, "request_id", uuid4().hex)
+        diagnostic_exception = RuntimeError(str(exc.detail))
+        logger.error(
+            "Server HTTP failure diagnostic_id=%s method=%s path=%s status=%s",
+            diagnostic_id,
+            request.method,
+            request.url.path,
+            exc.status_code,
+        )
+        write_diagnostic_event(
+            diagnostic_id=diagnostic_id,
+            user_id=getattr(request.state, "user_id", None),
+            method=request.method,
+            path=request.url.path,
+            status_code=exc.status_code,
+            exception=diagnostic_exception,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            headers={"X-Request-ID": diagnostic_id},
+            content={
+                "detail": (
+                    f"Problem found on Server connection. Issue caused by API "
+                    f"{request.method} {request.url.path}. {exc.detail}"
+                ),
+                "error": {
+                    "category": "server_error",
+                    "module": "Server connection",
+                    "endpoint": request.url.path,
+                    "method": request.method,
+                    "diagnostic_id": diagnostic_id,
+                    "status_code": exc.status_code,
+                },
+            },
+        )
 
     @application.exception_handler(Exception)
     async def unhandled_exception(request, exc):
