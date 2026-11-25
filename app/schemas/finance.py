@@ -116,6 +116,8 @@ class BudgetUpdate(BaseModel):
     categories: list[str] | None = Field(default=None, min_length=1, max_length=30)
     amount: Decimal | None = Field(default=None, gt=0, max_digits=18, decimal_places=2)
     period: BudgetPeriod | None = None
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    start_date: date | None = None
     end_date: date | None = None
     is_active: bool | None = None
 
