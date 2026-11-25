@@ -95,7 +95,7 @@ class TransactionListResponse(BaseModel):
 class BudgetCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     category: str | None = Field(default=None, min_length=1, max_length=80)
-    categories: list[str] = Field(default_factory=list, min_length=1, max_length=30)
+    categories: list[str] = Field(default_factory=list, max_length=30)
     amount: Decimal = Field(gt=0, max_digits=18, decimal_places=2)
     currency: str = Field(default="ZAR", pattern=r"^[A-Z]{3}$")
     period: BudgetPeriod = "monthly"
