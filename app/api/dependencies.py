@@ -81,15 +81,12 @@ def _load_authenticated_user(
 
 
 def _request_token(
-    request: Request | None,
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None,
 ) -> str | None:
     """Prefer bearer credentials, otherwise use the HttpOnly browser cookie."""
     if credentials is not None and credentials.scheme.lower() == "bearer":
         return credentials.credentials
-    if request is None:
-        return None
-
     cookie_token = request.cookies.get(ACCESS_TOKEN_COOKIE)
     if not cookie_token:
         return None
@@ -114,7 +111,7 @@ def get_current_user(
         HTTPAuthorizationCredentials | None,
         Depends(bearer_scheme),
     ],
-    request: Request | None = None,
+    request: Request,
 ) -> AuthenticatedUser:
     """Validate bearer or HttpOnly-cookie authentication."""
     return _load_authenticated_user(_request_token(request, credentials))
