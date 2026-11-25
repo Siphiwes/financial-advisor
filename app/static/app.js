@@ -622,7 +622,9 @@
       const details = el("div");
       details.append(el("h3", (item.source || "FNB_CSV").replaceAll("_", " ") + " import"));
       details.append(el("p", "Statement date: " + (item.statement_date || "Not supplied")));
-      top.append(details, el("span", item.status, "status-pill"));
+      const statusClass = item.status === "completed" ? "status-pill status-success" :
+        item.status === "partial" ? "status-pill status-warning" : "status-pill";
+      top.append(details, el("span", item.status, statusClass));
       card.append(top);
       const counts = el("p",
         "Processed: " + item.transaction_count +
@@ -911,7 +913,7 @@
     if (!state.financeRefreshTimer) {
       state.financeRefreshTimer = window.setInterval(() => {
         if (state.user && !document.hidden) loadFinanceData();
-      }, 45000);
+      }, 30000);
     }
     switchView("dashboard-view");
   }
@@ -1182,16 +1184,22 @@
     form.append("consent", "true");
     form.append("file", state.selectedFile);
     message("confirm-import-message", "Importing transactions...");
+    const importProgressTimer = window.setInterval(async () => {
+      try { renderImportHistory(await api("/imports")); } catch (_) {}
+    }, 1000);
     try {
       const extension = state.selectedFile.name.toLowerCase().split(".").pop();
       const confirmPath = extension === "pdf" ? "/imports/fnb/pdf/confirm" : "/imports/fnb/csv/confirm";
       const result = await api(confirmPath, { method: "POST", body: form });
+      window.clearInterval(importProgressTimer);
       message("confirm-import-message",
         result.message + " Imported: " + result.imported_count + ". Duplicates: " + result.duplicate_count,
         "success");
       await loadFinanceData();
     } catch (error) {
+      window.clearInterval(importProgressTimer);
       message("confirm-import-message", error.message, "error");
+      try { renderImportHistory(await api("/imports")); } catch (_) {}
     }
   });
 
@@ -1465,8 +1473,9 @@
       $("delete-confirmation").value.trim() !== "DELETE" ||
       !$("delete-password").value
     ) return;
-    const accepted = window.confirm(
-      "This permanently deletes your login and financial records. It cannot be undone. Continue?"
+    const accepted = await confirmInApp(
+      "This permanently deletes your login and financial records. It cannot be undone. Continue?",
+      "Delete permanently"
     );
     if (!accepted) return;
     message("delete-message", "Deleting account and financial records...");
