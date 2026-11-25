@@ -248,7 +248,7 @@ def create_financial_account(user: AuthenticatedUser, payload) -> dict:
 
 def list_financial_accounts(user: AuthenticatedUser) -> list[dict]:
     items, _ = _list_records(user.id, "accounts", limit=500)
-    return [item for item in items if item.get("is_active", True)]
+    return items
 
 def update_financial_account(user: AuthenticatedUser, account_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "accounts", account_id)
@@ -392,10 +392,16 @@ def delete_transaction(user: AuthenticatedUser, transaction_id: str) -> dict:
     return _record_view(_update_record(user.id, "transactions", transaction_id, data))
 
 def create_budget(user: AuthenticatedUser, payload) -> dict:
-    category = _validated_category(user, payload.category)
+    selected_categories = payload.categories or ([payload.category] if payload.category else [])
+    categories = list(dict.fromkeys(
+        _validated_category(user, item) for item in selected_categories
+    ))
+    if not categories:
+        raise FinanceValidationError("Select at least one income or expense category.")
     data = {
         "name": payload.name.strip(),
-        "category": category,
+        "category": categories[0],
+        "categories": categories,
         "amount": _decimal_text(payload.amount),
         "currency": payload.currency,
         "period": payload.period,
@@ -417,6 +423,16 @@ def update_budget(user: AuthenticatedUser, budget_id: str, changes: dict) -> dic
             continue
         if key == "category":
             value = _validated_category(user, value)
+            data["category"] = value
+            data["categories"] = [value]
+            continue
+        if key == "categories":
+            value = list(dict.fromkeys(_validated_category(user, item) for item in value))
+            if not value:
+                raise FinanceValidationError("Select at least one budget category.")
+            data["categories"] = value
+            data["category"] = value[0]
+            continue
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
         )
@@ -707,6 +723,18 @@ def commit_fnb_import(
         except Exception:
             pass
         raise
+
+    completed_data = dict(batch_document["data"])
+    completed_data.update({
+        "status": "completed",
+        "imported_count": imported_count,
+        "duplicate_count": duplicate_count,
+        "completed_at": _now(),
+        "updated_at": _now(),
+    })
+    update_user_scoped_document(
+        client, database, user.id, "imports", batch_id, completed_data
+    )
 
     _write_audit_event(
         user.id,
@@ -1076,12 +1104,20 @@ def list_budget_progress(user: AuthenticatedUser, *, today: date | None = None) 
                 transaction_date = date.fromisoformat(transaction["transaction_date"])
                 if not period_start <= transaction_date <= min(period_end, today):
                     continue
-                if transaction.get("category") != budget["category"]:
+                selected_categories = budget.get("categories") or [budget.get("category")]
+                if transaction.get("category") not in selected_categories:
                     continue
                 if transaction.get("currency") != budget["currency"]:
                     continue
                 amount = Decimal(str(transaction["amount"]))
-                if amount < 0:
+                category_kind = next(
+                    (entry["kind"] for entry in list_categories(user)
+                     if entry["name"].casefold() == str(transaction.get("category") or "").casefold()),
+                    "expense",
+                )
+                if category_kind == "income" and amount > 0:
+                    spent += amount
+                elif category_kind == "expense" and amount < 0:
                     spent += abs(amount)
 
         budget_amount = Decimal(str(budget["amount"]))
