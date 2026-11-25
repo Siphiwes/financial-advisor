@@ -771,7 +771,7 @@
     event.preventDefault();
     message("login-message", "Signing in...");
     try {
-      const token = await api("/auth/token", {
+      await api("/auth/token", {
         method: "POST",
         body: JSON.stringify({
           email: $("email").value.trim(),
@@ -1193,6 +1193,7 @@
         method: "DELETE",
         body: JSON.stringify({ current_password: $("delete-password").value }),
       });
+      fetch("/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
       state.token = null;
       state.user = null;
       $("delete-password").value = "";
