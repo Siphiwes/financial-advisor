@@ -8,6 +8,9 @@ import hashlib
 import json
 import logging
 import re
+import copy
+import threading
+import time
 from calendar import monthrange
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
@@ -38,6 +41,15 @@ from app.schemas.finance import (
 from app.services.fnb_csv import FNBStatement
 
 logger = logging.getLogger(__name__)
+_LIST_CACHE_TTL_SECONDS = 5.0
+_LIST_CACHE: dict[tuple, tuple[float, tuple[list[dict], bool]]] = {}
+_LIST_CACHE_LOCK = threading.RLock()
+
+
+def _invalidate_list_cache(user_id: str, collection: str) -> None:
+    with _LIST_CACHE_LOCK:
+        for key in [key for key in _LIST_CACHE if key[0] == user_id and key[1] == collection]:
+            _LIST_CACHE.pop(key, None)
 
 
 class FinanceRecordNotFoundError(LookupError):
@@ -185,6 +197,7 @@ def _create_record(
         data,
         record_id=record_id,
     )
+    _invalidate_list_cache(user_id, collection)
     if collection != "audit":
         _write_audit_event(user_id, "create", collection, saved_id)
     return _read_record(user_id, collection, saved_id)
@@ -199,6 +212,7 @@ def _update_record(user_id: str, collection: str, record_id: str, data: dict) ->
         raise FinanceRecordNotFoundError(
             "The requested record was not found."
         ) from exc
+    _invalidate_list_cache(user_id, collection)
     if collection != "audit":
         _write_audit_event(user_id, "update", collection, record_id)
     return _read_record(user_id, collection, record_id)
@@ -210,6 +224,12 @@ def _list_records(
     limit: int = 100,
     offset: int = 0,
 ) -> tuple[list[dict], bool]:
+    cache_key = (user_id, collection, limit, offset)
+    now = time.monotonic()
+    with _LIST_CACHE_LOCK:
+        cached = _LIST_CACHE.get(cache_key)
+        if cached and now - cached[0] < _LIST_CACHE_TTL_SECONDS:
+            return copy.deepcopy(cached[1])
     client, database = _connection()
     documents, has_more = list_user_scoped_documents(
         client,
@@ -219,7 +239,10 @@ def _list_records(
         limit=limit,
         offset=offset,
     )
-    return [_record_view(document) for document in documents], has_more
+    result = ([_record_view(document) for document in documents], has_more)
+    with _LIST_CACHE_LOCK:
+        _LIST_CACHE[cache_key] = (time.monotonic(), copy.deepcopy(result))
+    return result
 
 def _list_all_records(user_id: str, collection: str) -> tuple[list[dict], bool]:
     return _list_records(
