@@ -482,7 +482,7 @@ def update_goal(user: AuthenticatedUser, goal_id: str, changes: dict) -> dict:
     document = _read_record(user.id, "goals", goal_id)
     data = dict(document["data"])
     for key, value in changes.items():
-        if value is None and key != "target_date":
+        if value is None and key not in {"target_date", "description"}:
             continue
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
@@ -740,6 +740,8 @@ def commit_fnb_import(
             update_user_scoped_document(
                 client, database, user.id, "imports", batch_id, progress_data
             )
+            _invalidate_list_cache(user.id, "imports")
+            _invalidate_list_cache(user.id, "transactions")
             batch_document["data"] = progress_data
 
     except Exception:
@@ -756,6 +758,8 @@ def commit_fnb_import(
             update_user_scoped_document(
                 client, database, user.id, "imports", batch_id, batch_data
             )
+            _invalidate_list_cache(user.id, "imports")
+            _invalidate_list_cache(user.id, "transactions")
         except Exception:
             pass
         raise
@@ -771,6 +775,8 @@ def commit_fnb_import(
     update_user_scoped_document(
         client, database, user.id, "imports", batch_id, completed_data
     )
+    _invalidate_list_cache(user.id, "imports")
+    _invalidate_list_cache(user.id, "transactions")
 
     _write_audit_event(
         user.id,
@@ -983,7 +989,7 @@ def update_debt(user: AuthenticatedUser, debt_id: str, changes: dict) -> dict:
     for key, value in changes.items():
         if key == "current_balance":
             continue
-        if value is None and key != "due_date":
+        if value is None and key not in {"due_date", "opened_date"}:
             continue
         data[key] = value.isoformat() if isinstance(value, date) else (
             _decimal_text(value) if isinstance(value, Decimal) else value
