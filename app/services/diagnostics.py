@@ -13,7 +13,12 @@ logger = logging.getLogger(__name__)
 MAX_DIAGNOSTIC_RECORDS = 500
 SECRET_PATTERNS = (
     (re.compile(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+"), r"\1[REDACTED]"),
-    (re.compile(r"(?i)((?:password|passwd|api[_-]?key|token|secret)\s*[=:]\s*)[^\s,;]+"), r"\1[REDACTED]"),
+    (
+        re.compile(
+            r"(?i)((?:password|passwd|api[_-]?key|token|secret)\s*[=:]\s*)[^\s,;]+"
+        ),
+        r"\1[REDACTED]",
+    ),
 )
 
 
