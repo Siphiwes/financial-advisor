@@ -15,6 +15,8 @@ from app.integrations.watsonx import (
 from app.schemas.advisor import (
     AdvisorChatRequest,
     AdvisorChatResponse,
+    BulkTransactionCategorySuggestionRequest,
+    BulkTransactionCategorySuggestionResponse,
     TransactionCategorySuggestionRequest,
     TransactionCategorySuggestionResponse,
 )
@@ -193,6 +195,150 @@ async def suggest_transaction_category(
             "All stored fields for the selected transaction, including description, "
             "reference and account identifier",
             "The associated stored account record, including its account identifier",
+            "Available category names and types",
+        ],
+    )
+
+
+
+@router.post(
+    "/transactions/suggest-categories",
+    response_model=BulkTransactionCategorySuggestionResponse,
+    summary="Suggest categories for multiple selected transactions after explicit consent",
+)
+async def suggest_transaction_categories(
+    payload: BulkTransactionCategorySuggestionRequest,
+    current_user: CurrentUser,
+) -> BulkTransactionCategorySuggestionResponse:
+    """Send only the selected transactions and allowed category names to AI."""
+    if payload.consent_to_share_transactions is not True:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Explicit consent is required before the selected transactions, including "
+                "their descriptions, references, account identifiers and stored fields, "
+                "are sent to IBM watsonx.ai."
+            ),
+        )
+
+    finance.record_sensitive_access(current_user, "ai_bulk_category_request", "advisor")
+    transactions = []
+    try:
+        categories = finance.list_categories(current_user)
+        for transaction_id in payload.transaction_ids:
+            transaction = finance.get_transaction(current_user, transaction_id)
+            approved_transaction = dict(transaction)
+            try:
+                approved_transaction["account"] = finance.get_financial_account(
+                    current_user.id,
+                    transaction["account_id"],
+                    active=False,
+                )
+            except finance.FinanceRecordNotFoundError:
+                approved_transaction["account"] = None
+            transactions.append(approved_transaction)
+    except finance.FinanceRecordNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="One or more selected transactions could not be found.",
+        ) from exc
+
+    allowed_categories = [
+        {"name": item["name"], "kind": item["kind"]}
+        for item in categories
+        if item.get("is_active", True)
+    ]
+    if not allowed_categories:
+        raise HTTPException(status_code=422, detail="No active categories are available.")
+
+    expected_ids = {item["id"] for item in transactions}
+    question = (
+        "Categorise every supplied transaction independently. For each transaction, "
+        "choose exactly one category from allowed_categories. Return only a JSON object "
+        "with one key named suggestions. Its value must be an array containing exactly "
+        "one object per supplied transaction. Each object must contain transaction_id "
+        "(copied exactly from the supplied transaction), category (an exact allowed "
+        "category name), and explanation (a short reason based only on the supplied "
+        "transaction fields). Do not omit, duplicate or add transaction IDs. Do not "
+        "invent merchant information or other facts."
+    )
+    shared_data = {
+        "selected_transactions": transactions,
+        "allowed_categories": allowed_categories,
+    }
+
+    try:
+        answer, model_id = await ask_financial_advisor(question, shared_data)
+    except WatsonxConfigurationError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="IBM watsonx.ai is not configured.",
+        ) from exc
+    except WatsonxProviderError as exc:
+        logger.warning("watsonx.ai bulk category suggestion failed: %s", type(exc).__name__)
+        raise HTTPException(
+            status_code=502,
+            detail="The AI category suggestions could not be completed.",
+        ) from exc
+
+    try:
+        result = json.loads(answer.strip())
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI advisor returned invalid category suggestions.",
+        ) from exc
+
+    raw_suggestions = result.get("suggestions") if isinstance(result, dict) else None
+    if not isinstance(raw_suggestions, list):
+        raise HTTPException(
+            status_code=502,
+            detail="The AI advisor returned an invalid suggestions list.",
+        )
+
+    allowed_names = {item["name"] for item in allowed_categories}
+    suggestions = []
+    returned_ids = set()
+    for item in raw_suggestions:
+        if not isinstance(item, dict):
+            raise HTTPException(
+                status_code=502,
+                detail="The AI advisor returned an invalid suggestion.",
+            )
+        transaction_id = item.get("transaction_id")
+        category = item.get("category")
+        explanation = item.get("explanation")
+        if (
+            transaction_id not in expected_ids
+            or transaction_id in returned_ids
+            or category not in allowed_names
+            or not isinstance(explanation, str)
+            or not explanation.strip()
+        ):
+            raise HTTPException(
+                status_code=502,
+                detail="The AI advisor returned an invalid or unsupported category suggestion.",
+            )
+        returned_ids.add(transaction_id)
+        suggestions.append({
+            "transaction_id": transaction_id,
+            "suggested_category": category,
+            "explanation": explanation.strip()[:500],
+        })
+
+    if returned_ids != expected_ids:
+        raise HTTPException(
+            status_code=502,
+            detail="The AI advisor did not return a suggestion for every selected transaction.",
+        )
+
+    return BulkTransactionCategorySuggestionResponse(
+        model_id=model_id,
+        suggestions=suggestions,
+        data_shared=[
+            "All stored fields for the selected transactions, including descriptions, "
+            "references and account identifiers",
+            "Associated stored account records for the selected transactions",
             "Available category names and types",
         ],
     )

@@ -11,6 +11,8 @@
     debtSummary: null,
     selectedFile: null,
     importPreview: null,
+    selectedTransactionIds: new Set(),
+    visibleTransactions: [],
   };
   const $ = (id) => document.getElementById(id);
 
@@ -116,6 +118,8 @@
     state.categories = [];
     state.selectedFile = null;
     state.importPreview = null;
+    state.selectedTransactionIds.clear();
+    state.visibleTransactions = [];
     $("fnb-file").value = "";
     $("import-consent").checked = false;
     $("advisor-consent").checked = false;
@@ -384,22 +388,73 @@
     });
   }
 
+  function updateTransactionSelectionUI() {
+    const count = state.selectedTransactionIds.size;
+    $("transaction-selection-count").textContent =
+      count + (count === 1 ? " transaction selected" : " transactions selected");
+    $("bulk-suggest-category").disabled = count === 0 || !state.financeEnabled;
+    const selectAll = $("select-all-transactions");
+    if (selectAll) {
+      const visibleIds = state.visibleTransactions.map((item) => item.id);
+      const selectedVisible = visibleIds.filter((id) => state.selectedTransactionIds.has(id)).length;
+      selectAll.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+      selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+    }
+  }
+
   function renderTransactions(items) {
     const target = $("transaction-list");
     target.replaceChildren();
+    state.visibleTransactions = items || [];
+    const visibleIds = new Set(state.visibleTransactions.map((item) => item.id));
+    state.selectedTransactionIds = new Set(
+      [...state.selectedTransactionIds].filter((id) => visibleIds.has(id))
+    );
     if (!items || !items.length) {
       target.append(el("p", "No transactions match this view.", "empty-state"));
+      updateTransactionSelectionUI();
       return;
     }
     const table = el("table");
     const head = el("thead");
     const header = el("tr");
+    const selectHeader = el("th");
+    const selectAll = el("input");
+    selectAll.type = "checkbox";
+    selectAll.id = "select-all-transactions";
+    selectAll.setAttribute("aria-label", "Select all visible transactions");
+    selectAll.addEventListener("change", () => {
+      if (selectAll.checked) {
+        state.visibleTransactions.forEach((item) => state.selectedTransactionIds.add(item.id));
+      } else {
+        state.visibleTransactions.forEach((item) => state.selectedTransactionIds.delete(item.id));
+      }
+      target.querySelectorAll(".transaction-select").forEach((checkbox) => {
+        checkbox.checked = selectAll.checked;
+      });
+      updateTransactionSelectionUI();
+    });
+    selectHeader.append(selectAll);
+    header.append(selectHeader);
     ["Date","Description","Reference","Category","Amount","Actions"].forEach((label) => header.append(el("th", label)));
     head.append(header);
     table.append(head);
     const body = el("tbody");
     items.forEach((item) => {
       const row = el("tr");
+      const selectionCell = el("td");
+      const checkbox = el("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "transaction-select";
+      checkbox.checked = state.selectedTransactionIds.has(item.id);
+      checkbox.setAttribute("aria-label", "Select transaction " + item.transaction_date + " " + item.description);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) state.selectedTransactionIds.add(item.id);
+        else state.selectedTransactionIds.delete(item.id);
+        updateTransactionSelectionUI();
+      });
+      selectionCell.append(checkbox);
+      row.append(selectionCell);
       row.append(el("td", item.transaction_date));
       row.append(el("td", item.description));
       row.append(el("td", item.reference || "Not provided"));
@@ -459,7 +514,96 @@
     });
     table.append(body);
     target.append(table);
+    updateTransactionSelectionUI();
   }
+
+  async function suggestCategoriesForSelectedTransactions() {
+    const selectedIds = [...state.selectedTransactionIds];
+    if (!selectedIds.length) return;
+    const consent = await confirmInApp(
+      "Send the full stored details of " + selectedIds.length +
+      " selected transactions, including descriptions, references and account identifiers, " +
+      "their associated account records, and the available category names to IBM watsonx.ai? " +
+      "Only the selected transactions will be shared. No categories will be changed until you review and approve the suggestions.",
+      "Share selected transactions"
+    );
+    if (!consent) return;
+
+    const button = $("bulk-suggest-category");
+    button.disabled = true;
+    button.textContent = "Getting suggestions...";
+    try {
+      const result = await api("/api/v1/advisor/transactions/suggest-categories", {
+        method: "POST",
+        body: JSON.stringify({
+          transaction_ids: selectedIds,
+          consent_to_share_transactions: true,
+        }),
+      });
+      const transactionsById = new Map(state.visibleTransactions.map((item) => [item.id, item]));
+      const suggestions = result.suggestions || [];
+      const description = suggestions.map((item) => {
+        const transaction = transactionsById.get(item.transaction_id);
+        return (transaction ? transaction.transaction_date + " · " + transaction.description : item.transaction_id) +
+          "\nAI category: " + item.suggested_category +
+          "\nReason: " + item.explanation;
+      }).join("\n\n");
+      const review = await showAppDialog({
+        title: "Review AI category suggestions",
+        description: description + "\n\nSelect the suggestions you want to apply. Unselected transactions will remain unchanged.",
+        fields: [{
+          name: "apply_transaction_ids",
+          label: "Apply selected suggestions",
+          type: "multiselect",
+          value: suggestions.map((item) => item.transaction_id),
+          options: suggestions.map((item) => ({
+            value: item.transaction_id,
+            label: (transactionsById.get(item.transaction_id)?.description || item.transaction_id) +
+              " → " + item.suggested_category,
+          })),
+        }],
+        submitLabel: "Apply selected categories",
+      });
+      if (!review) return;
+      const applyIds = new Set(review.apply_transaction_ids);
+      if (!applyIds.size) {
+        globalMessage("No AI category suggestions were applied.", false);
+        return;
+      }
+      let applied = 0;
+      const failures = [];
+      for (const suggestion of suggestions) {
+        if (!applyIds.has(suggestion.transaction_id)) continue;
+        try {
+          await api("/api/v1/transactions/" + encodeURIComponent(suggestion.transaction_id), {
+            method: "PATCH",
+            body: JSON.stringify({ category: suggestion.suggested_category }),
+          });
+          applied += 1;
+        } catch (error) {
+          failures.push(error.message);
+        }
+      }
+      state.selectedTransactionIds.clear();
+      await loadFinanceData();
+      if (failures.length) {
+        globalMessage(
+          applied + " categories applied. " + failures.length +
+          " could not be updated. " + failures[0],
+          true
+        );
+      } else {
+        globalMessage(applied + " transaction categories updated from your approved AI suggestions.", false);
+      }
+    } catch (error) {
+      globalMessage(error.message, true);
+    } finally {
+      button.textContent = "Suggest category with AI";
+      updateTransactionSelectionUI();
+    }
+  }
+
+  $("bulk-suggest-category").addEventListener("click", suggestCategoriesForSelectedTransactions);
 
   async function editTransaction(item) {
     const values = await showAppDialog({title:"Edit transaction",fields:[

@@ -49,3 +49,31 @@ class TransactionCategorySuggestionResponse(BaseModel):
     explanation: str = Field(min_length=1, max_length=500)
     applied: Literal[False] = False
     data_shared: list[str]
+
+
+class BulkTransactionCategorySuggestionRequest(BaseModel):
+    transaction_ids: list[str] = Field(min_length=1, max_length=50)
+    consent_to_share_transactions: bool = False
+
+    @field_validator("transaction_ids")
+    @classmethod
+    def validate_transaction_ids(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value]
+        if any(not item for item in cleaned):
+            raise ValueError("Transaction IDs cannot be blank.")
+        if len(set(cleaned)) != len(cleaned):
+            raise ValueError("Select each transaction only once.")
+        return cleaned
+
+
+class BulkTransactionCategorySuggestionItem(BaseModel):
+    transaction_id: str
+    suggested_category: str
+    explanation: str = Field(min_length=1, max_length=500)
+
+
+class BulkTransactionCategorySuggestionResponse(BaseModel):
+    provider: Literal["IBM watsonx.ai"] = "IBM watsonx.ai"
+    model_id: str
+    suggestions: list[BulkTransactionCategorySuggestionItem]
+    data_shared: list[str]
