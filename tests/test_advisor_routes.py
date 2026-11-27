@@ -107,7 +107,9 @@ def test_bulk_transaction_category_suggestion_requires_explicit_consent(
     assert "consent" in response.json()["detail"].casefold()
 
 
-def test_bulk_transaction_category_suggestion_rejects_duplicate_ids() -> None:
+def test_bulk_transaction_category_suggestion_rejects_duplicate_ids(monkeypatch) -> None:
+    monkeypatch.setenv("FINANCIAL_DATA_ENABLED", "true")
+    monkeypatch.setenv("FINANCIAL_AI_ENABLED", "true")
     app.dependency_overrides[get_current_user] = _authenticated_user
     try:
         response = client.post(
