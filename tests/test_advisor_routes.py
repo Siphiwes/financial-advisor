@@ -108,16 +108,20 @@ def test_bulk_transaction_category_suggestion_requires_explicit_consent(
 
 
 def test_bulk_transaction_category_suggestion_rejects_duplicate_ids() -> None:
-    response = client.post(
-        "/api/v1/advisor/transactions/suggest-categories",
-        json={
-            "transaction_ids": [
-                "0123456789abcdef0123456789abcdef",
-                "0123456789abcdef0123456789abcdef",
-            ],
-            "consent_to_share_transactions": True,
-        },
-    )
+    app.dependency_overrides[get_current_user] = _authenticated_user
+    try:
+        response = client.post(
+            "/api/v1/advisor/transactions/suggest-categories",
+            json={
+                "transaction_ids": [
+                    "0123456789abcdef0123456789abcdef",
+                    "0123456789abcdef0123456789abcdef",
+                ],
+                "consent_to_share_transactions": True,
+            },
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
     assert response.status_code == 422
     assert "once" in response.json()["detail"][0]["msg"]
