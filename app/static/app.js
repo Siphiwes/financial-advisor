@@ -118,6 +118,8 @@
     state.categories = [];
     state.selectedFile = null;
     state.importPreview = null;
+    state.selectedTransactionIds.clear();
+    state.visibleTransactions = [];
     $("fnb-file").value = "";
     $("import-consent").checked = false;
     $("advisor-consent").checked = false;
