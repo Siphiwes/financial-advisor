@@ -301,7 +301,10 @@ async def suggest_transaction_categories(
     returned_ids = set()
     for item in raw_suggestions:
         if not isinstance(item, dict):
-            raise HTTPException(status_code=502, detail="The AI advisor returned an invalid suggestion.")
+            raise HTTPException(
+                status_code=502,
+                detail="The AI advisor returned an invalid suggestion.",
+            )
         transaction_id = item.get("transaction_id")
         category = item.get("category")
         explanation = item.get("explanation")
